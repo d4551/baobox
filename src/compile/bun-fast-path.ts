@@ -177,6 +177,18 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
       };
     }
     case 'Refine': {
+      if (current['~uint8arrayCodec'] === true) {
+        return {
+          fn: (value) => isUint8ArrayBase64String(
+            value,
+            current.minByteLength as number | undefined,
+            current.maxByteLength as number | undefined,
+            current.constBytes as Uint8Array | undefined,
+            current.constBase64 as string | undefined,
+          ),
+          strategy: 'bun-native',
+        };
+      }
       const itemPlan = compilePlan(current.item as TSchema);
       const refinements = current['~refine'] as Array<{ refine: (value: unknown) => boolean }> | undefined;
       if (itemPlan === null || refinements === undefined) return null;
@@ -211,6 +223,7 @@ export function checkUint8ArrayCodecValue(
   minByteLength?: number,
   maxByteLength?: number,
   constBytes?: Uint8Array,
+  constBase64?: string,
 ): boolean {
-  return isUint8ArrayBase64String(value, minByteLength, maxByteLength, constBytes, areUint8ArraysEqual);
+  return isUint8ArrayBase64String(value, minByteLength, maxByteLength, constBytes, constBase64);
 }

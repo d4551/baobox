@@ -1,14 +1,29 @@
-import type { TSchema } from '../type/schema.js';
+import type {
+  TArray,
+  TIntersect,
+  TObject,
+  TOptional,
+  TReadonly,
+  TRecord,
+  TRecursive,
+  TRef,
+  TSchema,
+  TTuple,
+  TUnion,
+} from '../type/schema.js';
+import { schemaKind } from '../shared/schema-access.js';
 import { Check } from './check.js';
-import { Create } from './create.js';
-import { Convert } from './convert.js';
 import { Clone } from './clone.js';
+import { Convert } from './convert.js';
+import { Create } from './create.js';
+
+type ReferenceMap = Map<string, TSchema>;
 
 /** Repair a value to conform to a schema. Returns a new value (does not mutate). */
 export function Repair<T extends TSchema>(schema: T, value: unknown): unknown {
-  let result = Clone(value);
-  const converted = Convert(schema, result);
-  const kind = (schema as { '~kind'?: string })['~kind'];
+  const converted = Convert(schema, Clone(value));
+  const kind = schemaKind(schema);
+
   if (
     Check(schema, converted)
     && kind !== 'Object'
@@ -18,132 +33,126 @@ export function Repair<T extends TSchema>(schema: T, value: unknown): unknown {
   ) {
     return converted;
   }
-  result = converted;
-  return RepairInternal(schema, result, new Map());
+
+  return repairInternal(schema, converted, new Map());
 }
 
-function RepairInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
-  const s = schema as Record<string, unknown>;
-  const kind = s['~kind'] as string | undefined;
+function repairObject(schema: TObject, value: unknown, refs: ReferenceMap): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return Create(schema) as Record<string, unknown>;
+  }
 
-  switch (kind) {
-    case 'Object': {
-      const props = s['properties'] as Record<string, TSchema>;
-      const required = (s['required'] as string[]) ?? [];
-      const optional = new Set((s['optional'] as string[]) ?? []);
-      const additionalProperties = s['additionalProperties'];
+  const required = schema.required ?? [];
+  const optional = new Set((schema.optional ?? []).map(String));
+  const objectValue = value as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
 
-      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-        return Create(schema);
+  for (const [key, propertySchema] of Object.entries(schema.properties)) {
+    if (key in objectValue) {
+      const propertyValue = objectValue[key];
+      if (propertyValue === undefined && optional.has(key)) {
+        result[key] = undefined;
+      } else {
+        result[key] = repairInternal(propertySchema, propertyValue, refs);
       }
-
-      const obj = value as Record<string, unknown>;
-      const result: Record<string, unknown> = {};
-
-      for (const [key, propSchema] of Object.entries(props)) {
-        if (key in obj) {
-          const propValue = obj[key];
-          if (propValue === undefined && optional.has(key)) {
-            result[key] = undefined;
-          } else {
-            result[key] = RepairInternal(propSchema, propValue, refs);
-          }
-        } else if (!optional.has(key) || required.includes(key)) {
-          result[key] = Create(propSchema);
-        }
-      }
-
-      if (additionalProperties !== false) {
-        for (const [key, val] of Object.entries(obj)) {
-          if (!(key in props)) result[key] = val;
-        }
-      }
-
-      return result;
+    } else if (!optional.has(key) || required.includes(key)) {
+      result[key] = Create(propertySchema);
     }
+  }
 
-    case 'Array': {
-      const itemSchema = s['items'] as TSchema;
-      const minItems = s['minItems'] as number | undefined;
-      const maxItems = s['maxItems'] as number | undefined;
-
-      if (!Array.isArray(value)) {
-        const arr: unknown[] = [];
-        if (minItems !== undefined) {
-          for (let i = 0; i < minItems; i++) arr.push(Create(itemSchema));
-        }
-        return arr;
-      }
-
-      const result = value.map(item => RepairInternal(itemSchema, item, refs));
-
-      if (minItems !== undefined && result.length < minItems) {
-        while (result.length < minItems) result.push(Create(itemSchema));
-      }
-      if (maxItems !== undefined && result.length > maxItems) {
-        result.length = maxItems;
-      }
-
-      return result;
+  if (schema.additionalProperties !== false) {
+    for (const [key, entryValue] of Object.entries(objectValue)) {
+      if (!(key in schema.properties)) result[key] = entryValue;
     }
+  }
 
-    case 'Tuple': {
-      const items = s['items'] as TSchema[];
-      if (!Array.isArray(value)) return items.map(item => Create(item));
-      return items.map((itemSchema, i) =>
-        i < value.length ? RepairInternal(itemSchema, value[i], refs) : Create(itemSchema)
-      );
-    }
+  return result;
+}
 
-    case 'Record': {
-      const valueSchema = s['value'] as TSchema;
-      if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
-      const result: Record<string, unknown> = {};
-      for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-        result[key] = RepairInternal(valueSchema, val, refs);
+function repairArray(schema: TArray, value: unknown, refs: ReferenceMap): unknown[] {
+  if (!Array.isArray(value)) {
+    const result: unknown[] = [];
+    if (schema.minItems !== undefined) {
+      for (let index = 0; index < schema.minItems; index += 1) {
+        result.push(Create(schema.items));
       }
-      return result;
     }
+    return result;
+  }
 
-    case 'Union': {
-      const variants = s['variants'] as TSchema[];
-      for (const variant of variants) {
-        const repaired = RepairInternal(variant, value, refs);
-        if (Check(variant, repaired)) return repaired;
-      }
-      return variants.length > 0 ? RepairInternal(variants[0]!, value, refs) : value;
-    }
+  const result = value.map((entry) => repairInternal(schema.items, entry, refs));
 
+  if (schema.minItems !== undefined && result.length < schema.minItems) {
+    while (result.length < schema.minItems) result.push(Create(schema.items));
+  }
+  if (schema.maxItems !== undefined && result.length > schema.maxItems) {
+    result.length = schema.maxItems;
+  }
+
+  return result;
+}
+
+function repairTuple(schema: TTuple, value: unknown, refs: ReferenceMap): unknown[] {
+  if (!Array.isArray(value)) return schema.items.map((item) => Create(item));
+  return schema.items.map((itemSchema, index) =>
+    index < value.length ? repairInternal(itemSchema, value[index], refs) : Create(itemSchema)
+  );
+}
+
+function repairRecord(schema: TRecord, value: unknown, refs: ReferenceMap): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const result: Record<string, unknown> = {};
+  Object.entries(value as Record<string, unknown>).forEach(([key, entryValue]) => {
+    result[key] = repairInternal(schema.value, entryValue, refs);
+  });
+  return result;
+}
+
+function repairUnion(schema: TUnion, value: unknown, refs: ReferenceMap): unknown {
+  for (const variant of schema.variants) {
+    const repaired = repairInternal(variant, value, refs);
+    if (Check(variant, repaired)) return repaired;
+  }
+  return schema.variants.length > 0 ? repairInternal(schema.variants[0]!, value, refs) : value;
+}
+
+function repairInternal(schema: TSchema, value: unknown, refs: ReferenceMap): unknown {
+  switch (schemaKind(schema)) {
+    case 'Object':
+      return repairObject(schema as TObject, value, refs);
+    case 'Array':
+      return repairArray(schema as TArray, value, refs);
+    case 'Tuple':
+      return repairTuple(schema as TTuple, value, refs);
+    case 'Record':
+      return repairRecord(schema as TRecord, value, refs);
+    case 'Union':
+      return repairUnion(schema as TUnion, value, refs);
     case 'Intersect': {
-      const variants = s['variants'] as TSchema[];
       let result = value;
-      for (const variant of variants) result = RepairInternal(variant, result, refs);
+      (schema as TIntersect).variants.forEach((variant) => {
+        result = repairInternal(variant, result, refs);
+      });
       return result;
     }
-
     case 'Optional':
-      return value === undefined ? undefined : RepairInternal(s['item'] as TSchema, value, refs);
-
+      return value === undefined ? undefined : repairInternal((schema as TOptional<TSchema>).item, value, refs);
     case 'Readonly':
-      return RepairInternal(s['item'] as TSchema, value, refs);
-
+      return repairInternal((schema as TReadonly<TSchema>).item, value, refs);
     case 'Recursive': {
+      const recursiveSchema = schema as TRecursive;
       const nextRefs = new Map(refs);
-      nextRefs.set(s['name'] as string, s['schema'] as TSchema);
-      return RepairInternal(s['schema'] as TSchema, value, nextRefs);
+      nextRefs.set(recursiveSchema.name, recursiveSchema.schema);
+      return repairInternal(recursiveSchema.schema, value, nextRefs);
     }
-
     case 'Ref': {
-      const target = refs.get(s['name'] as string);
-      return target ? RepairInternal(target, value, refs) : value;
+      const target = refs.get((schema as TRef).name);
+      return target === undefined ? value : repairInternal(target, value, refs);
     }
-
     case 'Decode':
     case 'Encode':
-      return RepairInternal(s['inner'] as TSchema, value, refs);
-
+      return repairInternal((schema as { inner: TSchema }).inner, value, refs);
     default:
-      if (Check(schema, value)) return value;
-      return Create(schema);
+      return Check(schema, value) ? value : Create(schema);
   }
 }

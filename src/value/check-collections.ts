@@ -4,6 +4,7 @@ import {
   deriveObjectSchema,
   getPatternPropertySchemas,
 } from '../shared/utils.js';
+import { isUint8ArrayBase64String } from '../shared/bytes.js';
 
 export function checkCollectionKind(
   kind: string | undefined,
@@ -173,7 +174,24 @@ export function checkCollectionKind(
     case 'Rest':
       return Array.isArray(value) && value.every((item) => check((schema as TSchema & { items: TSchema }).items, item, refs));
     case 'Refine': {
-      const current = schema as TSchema & { item: TSchema; '~refine': Array<{ refine: (value: unknown) => boolean }> };
+      const current = schema as TSchema & {
+        item: TSchema;
+        '~refine': Array<{ refine: (value: unknown) => boolean }>;
+        '~uint8arrayCodec'?: boolean;
+        minByteLength?: number;
+        maxByteLength?: number;
+        constBytes?: Uint8Array;
+        constBase64?: string;
+      };
+      if (current['~uint8arrayCodec'] === true) {
+        return isUint8ArrayBase64String(
+          value,
+          current.minByteLength,
+          current.maxByteLength,
+          current.constBytes,
+          current.constBase64,
+        );
+      }
       if (!check(current.item, value, refs)) return false;
       return current['~refine'].every((entry) => entry.refine(value));
     }

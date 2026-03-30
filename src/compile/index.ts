@@ -1,15 +1,30 @@
-import type { TSchema } from '../type/schema.js';
+import type {
+  TArray,
+  TEnum,
+  TInteger,
+  TLiteral,
+  TNumber,
+  TObject,
+  TOptional,
+  TReadonly,
+  TSchema,
+  TString,
+  TUint8Array,
+  TUnion,
+  TIntersect,
+} from '../type/schema.js';
 import type { SchemaError } from '../error/errors.js';
-import { Check } from '../value/check.js';
+import { schemaKind } from '../shared/schema-access.js';
+import { validateFormat } from '../shared/format-validators.js';
 import { Errors } from '../error/errors.js';
+import { Check } from '../value/check.js';
 import { Clean } from '../value/clean.js';
 import { Convert } from '../value/convert.js';
 import { Create } from '../value/create.js';
 import { Default } from '../value/default.js';
-import { Parse, ParseError } from '../value/parse.js';
 import { Decode as ValueDecode } from '../value/decode.js';
 import { Encode as ValueEncode } from '../value/encode.js';
-import { validateFormat } from '../shared/format-validators.js';
+import { Parse, ParseError } from '../value/parse.js';
 import { compileBunFastPath } from './bun-fast-path.js';
 
 export class Validator<T extends TSchema> {
@@ -92,6 +107,92 @@ interface CompileResult {
   strategy: string;
 }
 
+type EmitSchema = (schema: TSchema, valueExpr: string) => string;
+
+function emitStringCheck(schema: TString, valueExpr: string): string {
+  const checks: string[] = [`typeof ${valueExpr} === 'string'`];
+  if (schema.minLength !== undefined) checks.push(`${valueExpr}.length >= ${schema.minLength}`);
+  if (schema.maxLength !== undefined) checks.push(`${valueExpr}.length <= ${schema.maxLength}`);
+  if (schema.pattern !== undefined) checks.push(`/${schema.pattern}/.test(${valueExpr})`);
+  if (schema.format !== undefined) checks.push(`__validateFormat(${valueExpr}, ${JSON.stringify(schema.format)})`);
+  return checks.join(' && ');
+}
+
+function emitNumberCheck(schema: TNumber, valueExpr: string): string {
+  const checks: string[] = [`typeof ${valueExpr} === 'number'`, `Number.isFinite(${valueExpr})`];
+  if (schema.minimum !== undefined) checks.push(`${valueExpr} >= ${schema.minimum}`);
+  if (schema.maximum !== undefined) checks.push(`${valueExpr} <= ${schema.maximum}`);
+  if (schema.exclusiveMinimum !== undefined) checks.push(`${valueExpr} > ${schema.exclusiveMinimum}`);
+  if (schema.exclusiveMaximum !== undefined) checks.push(`${valueExpr} < ${schema.exclusiveMaximum}`);
+  if (schema.multipleOf !== undefined) checks.push(`${valueExpr} % ${schema.multipleOf} === 0`);
+  return checks.join(' && ');
+}
+
+function emitIntegerCheck(schema: TInteger, valueExpr: string): string {
+  const checks: string[] = [`typeof ${valueExpr} === 'number'`, `Number.isInteger(${valueExpr})`];
+  if (schema.minimum !== undefined) checks.push(`${valueExpr} >= ${schema.minimum}`);
+  if (schema.maximum !== undefined) checks.push(`${valueExpr} <= ${schema.maximum}`);
+  return checks.join(' && ');
+}
+
+function emitLiteralCheck(schema: TLiteral<string | number | boolean>, valueExpr: string): string {
+  return `${valueExpr} === ${JSON.stringify(schema.const)}`;
+}
+
+function emitArrayCheck(
+  schema: TArray,
+  valueExpr: string,
+  emitSchema: EmitSchema,
+  nextVar: () => string,
+): string {
+  const itemVar = nextVar();
+  const checks: string[] = [`Array.isArray(${valueExpr})`];
+  if (schema.minItems !== undefined) checks.push(`${valueExpr}.length >= ${schema.minItems}`);
+  if (schema.maxItems !== undefined) checks.push(`${valueExpr}.length <= ${schema.maxItems}`);
+  checks.push(`${valueExpr}.every(${itemVar} => ${emitSchema(schema.items, itemVar)})`);
+  return checks.join(' && ');
+}
+
+function emitObjectCheck(schema: TObject, valueExpr: string, emitSchema: EmitSchema): string {
+  const checks: string[] = [
+    `typeof ${valueExpr} === 'object'`,
+    `${valueExpr} !== null`,
+    `!Array.isArray(${valueExpr})`,
+  ];
+  const required = schema.required ?? Object.keys(schema.properties);
+  const optional = new Set((schema.optional ?? []).map(String));
+
+  for (const key of required) {
+    if (schema.properties[key] !== undefined && !optional.has(String(key))) {
+      checks.push(`'${String(key)}' in ${valueExpr}`);
+      checks.push(emitSchema(schema.properties[key], `${valueExpr}['${String(key)}']`));
+    }
+  }
+
+  return checks.join(' && ');
+}
+
+function emitVariantCheck(
+  schema: TUnion | TIntersect,
+  valueExpr: string,
+  emitSchema: EmitSchema,
+  operator: '&&' | '||',
+): string {
+  return schema.variants.map((variant) => `(${emitSchema(variant, valueExpr)})`).join(` ${operator} `);
+}
+
+function emitEnumCheck(schema: TEnum, valueExpr: string): string {
+  return `[${schema.values.map((value) => JSON.stringify(value)).join(',')}].includes(${valueExpr})`;
+}
+
+function emitUint8ArrayCheck(schema: TUint8Array, valueExpr: string): string {
+  return [
+    `${valueExpr} instanceof Uint8Array`,
+    schema.minByteLength !== undefined ? `${valueExpr}.byteLength >= ${schema.minByteLength}` : 'true',
+    schema.maxByteLength !== undefined ? `${valueExpr}.byteLength <= ${schema.maxByteLength}` : 'true',
+  ].join(' && ');
+}
+
 function compileSchema(schema: TSchema): CompileResult {
   let varCounter = 0;
 
@@ -99,34 +200,14 @@ function compileSchema(schema: TSchema): CompileResult {
     return `v${varCounter++}`;
   }
 
-  function emit(schema: TSchema, valueExpr: string): string {
-    const s = schema as Record<string, unknown>;
-    const kind = s['~kind'] as string;
-
-    switch (kind) {
-      case 'String': {
-        const checks: string[] = [`typeof ${valueExpr} === 'string'`];
-        if (s.minLength !== undefined) checks.push(`${valueExpr}.length >= ${s.minLength}`);
-        if (s.maxLength !== undefined) checks.push(`${valueExpr}.length <= ${s.maxLength}`);
-        if (s.pattern !== undefined) checks.push(`/${s.pattern}/.test(${valueExpr})`);
-        if (s.format !== undefined) checks.push(`__validateFormat(${valueExpr}, ${JSON.stringify(s.format)})`);
-        return checks.join(' && ');
-      }
-      case 'Number': {
-        const checks: string[] = [`typeof ${valueExpr} === 'number'`, `Number.isFinite(${valueExpr})`];
-        if (s.minimum !== undefined) checks.push(`${valueExpr} >= ${s.minimum}`);
-        if (s.maximum !== undefined) checks.push(`${valueExpr} <= ${s.maximum}`);
-        if (s.exclusiveMinimum !== undefined) checks.push(`${valueExpr} > ${s.exclusiveMinimum}`);
-        if (s.exclusiveMaximum !== undefined) checks.push(`${valueExpr} < ${s.exclusiveMaximum}`);
-        if (s.multipleOf !== undefined) checks.push(`${valueExpr} % ${s.multipleOf} === 0`);
-        return checks.join(' && ');
-      }
-      case 'Integer': {
-        const checks: string[] = [`typeof ${valueExpr} === 'number'`, `Number.isInteger(${valueExpr})`];
-        if (s.minimum !== undefined) checks.push(`${valueExpr} >= ${s.minimum}`);
-        if (s.maximum !== undefined) checks.push(`${valueExpr} <= ${s.maximum}`);
-        return checks.join(' && ');
-      }
+  function emit(currentSchema: TSchema, valueExpr: string): string {
+    switch (schemaKind(currentSchema)) {
+      case 'String':
+        return emitStringCheck(currentSchema as TString, valueExpr);
+      case 'Number':
+        return emitNumberCheck(currentSchema as TNumber, valueExpr);
+      case 'Integer':
+        return emitIntegerCheck(currentSchema as TInteger, valueExpr);
       case 'Boolean':
         return `typeof ${valueExpr} === 'boolean'`;
       case 'Null':
@@ -136,7 +217,7 @@ function compileSchema(schema: TSchema): CompileResult {
       case 'Date':
         return `${valueExpr} instanceof Date && !isNaN(${valueExpr}.getTime())`;
       case 'Literal':
-        return `${valueExpr} === ${JSON.stringify(s['const'])}`;
+        return emitLiteralCheck(currentSchema as TLiteral<string | number | boolean>, valueExpr);
       case 'Void':
         return `${valueExpr} === undefined || ${valueExpr} === null`;
       case 'Undefined':
@@ -146,60 +227,26 @@ function compileSchema(schema: TSchema): CompileResult {
         return 'true';
       case 'Never':
         return 'false';
-      case 'Array': {
-        const itemVar = nextVar();
-        const itemCheck = emit(s.items as TSchema, itemVar);
-        const checks: string[] = [`Array.isArray(${valueExpr})`];
-        if (s.minItems !== undefined) checks.push(`${valueExpr}.length >= ${s.minItems}`);
-        if (s.maxItems !== undefined) checks.push(`${valueExpr}.length <= ${s.maxItems}`);
-        checks.push(`${valueExpr}.every(${itemVar} => ${itemCheck})`);
-        return checks.join(' && ');
-      }
-      case 'Object': {
-        const checks: string[] = [
-          `typeof ${valueExpr} === 'object'`,
-          `${valueExpr} !== null`,
-          `!Array.isArray(${valueExpr})`,
-        ];
-        const props = s.properties as Record<string, TSchema>;
-        const required = (s.required as string[]) ?? Object.keys(props);
-        const optional = new Set((s.optional as string[]) ?? []);
-        for (const key of required) {
-          if (props[key] && !optional.has(key)) {
-            checks.push(`'${key}' in ${valueExpr}`);
-            checks.push(emit(props[key], `${valueExpr}['${key}']`));
-          }
-        }
-        return checks.join(' && ');
-      }
-      case 'Union': {
-        const variants = s.variants as TSchema[];
-        const variantChecks = variants.map(v => `(${emit(v, valueExpr)})`);
-        return variantChecks.join(' || ');
-      }
-      case 'Intersect': {
-        const variants = s.variants as TSchema[];
-        const variantChecks = variants.map(v => `(${emit(v, valueExpr)})`);
-        return variantChecks.join(' && ');
-      }
+      case 'Array':
+        return emitArrayCheck(currentSchema as TArray, valueExpr, emit, nextVar);
+      case 'Object':
+        return emitObjectCheck(currentSchema as TObject, valueExpr, emit);
+      case 'Union':
+        return emitVariantCheck(currentSchema as TUnion, valueExpr, emit, '||');
+      case 'Intersect':
+        return emitVariantCheck(currentSchema as TIntersect, valueExpr, emit, '&&');
       case 'Optional':
-        return `${valueExpr} === undefined || (${emit(s.item as TSchema, valueExpr)})`;
+        return `${valueExpr} === undefined || (${emit((currentSchema as TOptional<TSchema>).item, valueExpr)})`;
       case 'Readonly':
-        return emit(s.item as TSchema, valueExpr);
-      case 'Enum': {
-        const values = s.values as string[];
-        return `[${values.map(v => JSON.stringify(v)).join(',')}].includes(${valueExpr})`;
-      }
+        return emit((currentSchema as TReadonly<TSchema>).item, valueExpr);
+      case 'Enum':
+        return emitEnumCheck(currentSchema as TEnum, valueExpr);
       case 'Symbol':
         return `typeof ${valueExpr} === 'symbol'`;
       case 'Function':
         return `typeof ${valueExpr} === 'function'`;
       case 'Uint8Array':
-        return [
-          `${valueExpr} instanceof Uint8Array`,
-          s.minByteLength !== undefined ? `${valueExpr}.byteLength >= ${s.minByteLength}` : 'true',
-          s.maxByteLength !== undefined ? `${valueExpr}.byteLength <= ${s.maxByteLength}` : 'true',
-        ].join(' && ');
+        return emitUint8ArrayCheck(currentSchema as TUint8Array, valueExpr);
       default:
         return `__check(${valueExpr})`;
     }
@@ -208,7 +255,6 @@ function compileSchema(schema: TSchema): CompileResult {
   const bodyExpr = emit(schema, 'value');
   const codeStr = `return ${bodyExpr};`;
   const fullCode = `(function(value, __check, __validateFormat) { ${codeStr} })`;
-
   const fallbackCheck = (value: unknown) => Check(schema, value);
 
   // SAFETY: new Function is used intentionally for JIT compilation of validation code

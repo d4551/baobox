@@ -149,7 +149,8 @@ Baobox is designed around Bun-native workflows:
 
 - `Uint8ArrayCodec()` provides a built-in base64 `<-> Uint8Array` codec for encoded JSON payloads and decoded runtime byte values.
 - `Compile()` now includes a Bun-native binary fast path for `Uint8Array` and `Uint8ArrayCodec` schema graphs.
-- When a byte schema provides `constBytes`, the binary fast path uses Bun FFI `memcmp` pointer comparison for exact byte matching.
+- `Uint8ArrayCodec()` validators use a Bun-native encoded-string fast path: base64 validation, decoded-byte-length checks, and canonical encoded-string equality for `constBytes`.
+- Raw `Uint8Array()` exact-byte validators use Bun FFI `memcmp` pointer comparison when `constBytes` is provided.
 - The generic JIT compiler remains in place for the broader schema surface and now includes string format checks in generated validators.
 
 ## Project structure

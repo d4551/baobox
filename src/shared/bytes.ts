@@ -30,6 +30,11 @@ export function decodeUint8ArrayBase64(value: string): Uint8Array {
   return new Uint8Array(Buffer.from(value, 'base64'));
 }
 
+export function getBase64DecodedByteLength(value: string): number {
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+  return ((value.length / 4) * 3) - padding;
+}
+
 export function areUint8ArraysEqual(left: Uint8Array, right: Uint8Array): boolean {
   if (left.byteLength !== right.byteLength) {
     return false;
@@ -49,7 +54,7 @@ export function areUint8ArraysEqual(left: Uint8Array, right: Uint8Array): boolea
 }
 
 export function isUint8ArrayWithinBounds(
-  value: Uint8Array,
+  value: { byteLength: number },
   minByteLength?: number,
   maxByteLength?: number,
 ): boolean {
@@ -62,14 +67,13 @@ export function isUint8ArrayBase64String(
   minByteLength?: number,
   maxByteLength?: number,
   constBytes?: Uint8Array,
-  bytesEqual?: (left: Uint8Array, right: Uint8Array) => boolean,
+  constBase64?: string,
 ): boolean {
   if (typeof value !== 'string' || !validateFormat(value, 'base64')) {
     return false;
   }
-  const decoded = decodeUint8ArrayBase64(value);
-  if (!isUint8ArrayWithinBounds(decoded, minByteLength, maxByteLength)) {
+  if (!isUint8ArrayWithinBounds({ byteLength: getBase64DecodedByteLength(value) }, minByteLength, maxByteLength)) {
     return false;
   }
-  return constBytes === undefined || (bytesEqual ? bytesEqual(decoded, constBytes) : areUint8ArraysEqual(decoded, constBytes));
+  return constBytes === undefined ? true : value === (constBase64 ?? encodeUint8ArrayBase64(constBytes));
 }

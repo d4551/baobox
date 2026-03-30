@@ -3,17 +3,20 @@ import type { TCodec, TRefine } from './extensions.js';
 import { Codec, Refine } from './extensions.js';
 import { String } from './primitives.js';
 import {
-  areUint8ArraysEqual,
   decodeUint8ArrayBase64,
   encodeUint8ArrayBase64,
   isUint8ArrayBase64String,
 } from '../shared/bytes.js';
 
-export type TUint8ArrayCodec = TRefine<TCodec<TString, Uint8Array>> & Pick<TUint8Array, 'minByteLength' | 'maxByteLength' | 'constBytes'>;
+export type TUint8ArrayCodec = TRefine<TCodec<TString, Uint8Array>> & Pick<TUint8Array, 'minByteLength' | 'maxByteLength' | 'constBytes'> & {
+  '~uint8arrayCodec': true;
+  constBase64?: string;
+};
 
 export function Uint8ArrayCodec(
   options: Partial<Omit<TUint8Array, "'~kind'">> = {},
 ): TUint8ArrayCodec {
+  const constBase64 = options.constBytes === undefined ? undefined : encodeUint8ArrayBase64(options.constBytes);
   const codec = Codec(String({
     format: 'base64',
     ...(options.title === undefined ? {} : { title: options.title }),
@@ -30,12 +33,14 @@ export function Uint8ArrayCodec(
       options.minByteLength,
       options.maxByteLength,
       options.constBytes,
-      areUint8ArraysEqual,
+      constBase64,
     ),
     'Expected a base64-encoded Uint8Array value',
     ),
+    '~uint8arrayCodec': true,
     ...(options.minByteLength === undefined ? {} : { minByteLength: options.minByteLength }),
     ...(options.maxByteLength === undefined ? {} : { maxByteLength: options.maxByteLength }),
     ...(options.constBytes === undefined ? {} : { constBytes: options.constBytes }),
+    ...(constBase64 === undefined ? {} : { constBase64 }),
   };
 }
