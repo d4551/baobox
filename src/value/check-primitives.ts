@@ -5,9 +5,9 @@ import {
   isAsyncIteratorLike,
   isIteratorLike,
   isPromiseLike,
-  TypeSystemPolicy,
 } from '../shared/utils.js';
 import { areUint8ArraysEqual, isUint8ArrayWithinBounds } from '../shared/bytes.js';
+import { resolveRuntimeContext, type RuntimeContextArg } from '../shared/runtime-context.js';
 import {
   schemaBigIntField,
   schemaCallbackField,
@@ -54,12 +54,18 @@ function checkUint8ArrayConstraints(schema: TSchema, value: Uint8Array): boolean
   return expectedBytes === undefined || areUint8ArraysEqual(value, expectedBytes);
 }
 
-export function checkPrimitiveKind(kind: string | undefined, schema: TSchema, value: unknown): boolean | undefined {
+export function checkPrimitiveKind(
+  kind: string | undefined,
+  schema: TSchema,
+  value: unknown,
+  context?: RuntimeContextArg,
+): boolean | undefined {
+  const runtimeContext = resolveRuntimeContext(context);
   switch (kind) {
     case 'String':
-      return typeof value === 'string' && checkStringConstraints(schema as TSchema & Record<string, unknown>, value);
+      return typeof value === 'string' && checkStringConstraints(schema as TSchema & Record<string, unknown>, value, runtimeContext);
     case 'Number': {
-      const policy = TypeSystemPolicy.Get();
+      const policy = runtimeContext.TypeSystemPolicy.Get();
       return typeof value === 'number'
         && (policy.AllowNaN || Number.isFinite(value))
         && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value);

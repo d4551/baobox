@@ -1,5 +1,6 @@
 import type { TSchema } from '../type/schema.js';
 import { checkNumberConstraints, checkStringConstraints } from '../shared/format-validators.js';
+import type { RuntimeContext } from '../shared/runtime-context.js';
 import {
   areUint8ArraysEqual,
   isUint8ArrayBase64String,
@@ -70,17 +71,22 @@ function containsBinaryPath(schema: TSchema): boolean {
   }
 }
 
-function compilePrimitivePlan(schema: TSchema): BunFastPlan | null {
+function compilePrimitivePlan(
+  schema: TSchema,
+  context: RuntimeContext,
+): BunFastPlan | null {
   const current = schemaUnknownField(schema, '~kind');
   switch (typeof current === 'string' ? current : undefined) {
     case 'String':
       return {
-        fn: (value) => typeof value === 'string' && checkStringConstraints(schema as TSchema & Record<string, unknown>, value),
+        fn: (value) => typeof value === 'string' && checkStringConstraints(schema as TSchema & Record<string, unknown>, value, context),
         strategy: 'bun-native',
       };
     case 'Number':
       return {
-        fn: (value) => typeof value === 'number' && Number.isFinite(value) && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value),
+        fn: (value) => typeof value === 'number'
+          && (context.TypeSystemPolicy.Get().AllowNaN || Number.isFinite(value))
+          && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value),
         strategy: 'bun-native',
       };
     case 'Integer':
@@ -117,10 +123,13 @@ function compilePrimitivePlan(schema: TSchema): BunFastPlan | null {
   }
 }
 
-function compileCollectionPlan(schema: TSchema): BunFastPlan | null {
+function compileCollectionPlan(
+  schema: TSchema,
+  context: RuntimeContext,
+): BunFastPlan | null {
   switch (schemaKind(schema)) {
     case 'Array': {
-      const itemPlan = compilePlan(schemaItem(schema) ?? schema);
+      const itemPlan = compilePlan(schemaItem(schema) ?? schema, context);
       if (itemPlan === null) return null;
       return {
         fn: (value) => Array.isArray(value) && value.every(itemPlan.fn),
@@ -128,7 +137,7 @@ function compileCollectionPlan(schema: TSchema): BunFastPlan | null {
       };
     }
     case 'Tuple': {
-      const itemPlans = schemaSchemaListField(schema, 'items').map(compilePlan);
+      const itemPlans = schemaSchemaListField(schema, 'items').map((entry) => compilePlan(entry, context));
       if (itemPlans.some((plan) => plan === null)) return null;
       const tuplePlans = itemPlans as BunFastPlan[];
       const minItems = schemaNumberField(schema, 'minItems');
@@ -154,7 +163,7 @@ function compileCollectionPlan(schema: TSchema): BunFastPlan | null {
         return null;
       }
       const propertyEntries = Object.entries(properties)
-        .map(([key, propertySchema]) => [key, compilePlan(propertySchema)] as const);
+        .map(([key, propertySchema]) => [key, compilePlan(propertySchema, context)] as const);
       if (propertyEntries.some(([, plan]) => plan === null)) return null;
       const propertyPlans = new Map(propertyEntries as Array<readonly [string, BunFastPlan]>);
       const required = new Set(schemaRequiredKeys(schema).length > 0 ? schemaRequiredKeys(schema) : Object.keys(properties));
@@ -180,7 +189,7 @@ function compileCollectionPlan(schema: TSchema): BunFastPlan | null {
       };
     }
     case 'Union': {
-      const variantPlans = schemaVariants(schema).map(compilePlan);
+      const variantPlans = schemaVariants(schema).map((entry) => compilePlan(entry, context));
       if (variantPlans.some((plan) => plan === null)) return null;
       const plans = variantPlans as BunFastPlan[];
       return {
@@ -189,7 +198,7 @@ function compileCollectionPlan(schema: TSchema): BunFastPlan | null {
       };
     }
     case 'Intersect': {
-      const variantPlans = schemaVariants(schema).map(compilePlan);
+      const variantPlans = schemaVariants(schema).map((entry) => compilePlan(entry, context));
       if (variantPlans.some((plan) => plan === null)) return null;
       const plans = variantPlans as BunFastPlan[];
       return {
@@ -202,7 +211,10 @@ function compileCollectionPlan(schema: TSchema): BunFastPlan | null {
   }
 }
 
-function compileWrapperPlan(schema: TSchema): BunFastPlan | null {
+function compileWrapperPlan(
+  schema: TSchema,
+  context: RuntimeContext,
+): BunFastPlan | null {
   switch (schemaKind(schema)) {
     case 'Optional':
     case 'Readonly':
@@ -210,7 +222,7 @@ function compileWrapperPlan(schema: TSchema): BunFastPlan | null {
     case 'Codec':
     case 'Decode':
     case 'Encode': {
-      const innerPlan = compilePlan(schemaItemOrInner(schema) ?? schema);
+      const innerPlan = compilePlan(schemaItemOrInner(schema) ?? schema, context);
       if (innerPlan === null) return null;
       return {
         fn: (value) => schemaKind(schema) === 'Optional' && value === undefined ? true : innerPlan.fn(value),
@@ -241,7 +253,7 @@ function compileWrapperPlan(schema: TSchema): BunFastPlan | null {
           strategy: 'bun-native',
         };
       }
-      const itemPlan = compilePlan(schemaItem(schema) ?? schema);
+      const itemPlan = compilePlan(schemaItem(schema) ?? schema, context);
       const refinementsValue = schemaUnknownField(schema, '~refine');
       const refinements = Array.isArray(refinementsValue)
         ? refinementsValue.filter((entry): entry is { refine: (value: unknown) => boolean } =>
@@ -258,17 +270,23 @@ function compileWrapperPlan(schema: TSchema): BunFastPlan | null {
   }
 }
 
-function compilePlan(schema: TSchema): BunFastPlan | null {
-  return compilePrimitivePlan(schema)
-    ?? compileCollectionPlan(schema)
-    ?? compileWrapperPlan(schema);
+function compilePlan(
+  schema: TSchema,
+  context: RuntimeContext,
+): BunFastPlan | null {
+  return compilePrimitivePlan(schema, context)
+    ?? compileCollectionPlan(schema, context)
+    ?? compileWrapperPlan(schema, context);
 }
 
-export function compileBunFastPath(schema: TSchema): BunFastPathResult | null {
+export function compileBunFastPath(
+  schema: TSchema,
+  context: RuntimeContext,
+): BunFastPathResult | null {
   if (!containsBinaryPath(schema)) {
     return null;
   }
-  const plan = compilePlan(schema);
+  const plan = compilePlan(schema, context);
   if (plan === null) {
     return null;
   }

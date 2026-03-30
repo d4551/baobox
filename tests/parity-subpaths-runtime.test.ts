@@ -28,7 +28,8 @@ describe('subpath runtime export parity', () => {
   });
 
   it('matches error export keys', () => {
-    expect(keys(BaoboxErrorModule)).toEqual(keys(TypeBoxErrorModule));
+    expect(missingKeys(BaoboxErrorModule, TypeBoxErrorModule)).toEqual([]);
+    expect(typeof BaoboxErrorModule.Explain).toBe('function');
   });
 
   it('matches format export keys', () => {

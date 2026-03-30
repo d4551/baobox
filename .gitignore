@@ -1,9 +1,13 @@
 node_modules/
 dist/
+dist-types-check/
 *.log
 .env
 .env.*
 !.env.example
+.npmrc
+.npmrc.*
+!.npmrc.example
 .DS_Store
 .sisyphus/
 .idea/

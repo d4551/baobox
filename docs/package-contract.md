@@ -30,6 +30,8 @@ These are the supported package imports:
 - `baobox/guard`
 - `baobox/system`
 - `baobox/script`
+- `baobox/locale`
+- `baobox/standard`
 
 ## What Each Entrypoint Is For
 
@@ -45,6 +47,8 @@ These are the supported package imports:
 | `baobox/guard` | Guard namespaces aligned with the TypeBox-style guard surface |
 | `baobox/system` | Runtime settings, locale, hashing, memory, and environment helpers |
 | `baobox/script` | Script DSL helpers |
+| `baobox/locale` | Official per-locale catalog bundles for the declared locale registry |
+| `baobox/standard` | Standard Schema V1 adapter helpers for typed and raw-schema interop |
 
 ## Supported vs Internal Imports
 

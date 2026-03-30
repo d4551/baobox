@@ -1,0 +1,104 @@
+name: Publish to npmjs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish.yml
+      - README.md
+      - bun.lock
+      - bunfig.toml
+      - docs/**
+      - package.json
+      - src/**
+      - tests/**
+      - tsconfig.json
+      - tsconfig.test.json
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bun-version: [1.3.11, latest]
+        typescript-version: [6.0.2, latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.bun-version }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Pin TypeScript for matrix entry
+        run: bun add --dev --exact typescript@${{ matrix.typescript-version }}
+
+      - name: Typecheck
+        run: bunx tsc --noEmit --project tsconfig.test.json
+
+      - name: Build package
+        run: bun run build
+
+      - name: Run tests
+        run: bun test
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: npm-publish-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build package
+        run: bun run build
+
+      - name: Run tests
+        run: bun test
+
+      - name: Check whether this version is already published
+        id: registry
+        run: |
+          bun --eval '
+            const packageJson = await Bun.file("package.json").json();
+            const packagePath = packageJson.name.startsWith("@")
+              ? packageJson.name.replace("/", "%2f")
+              : packageJson.name;
+            const response = await fetch(`https://registry.npmjs.org/${packagePath}/${packageJson.version}`);
+
+            if (!(response.ok || response.status === 404)) {
+              console.log(`Unexpected npm registry response status: ${response.status}`);
+              process.exit(1);
+            }
+
+            console.log(`publish=${response.status === 404 ? "true" : "false"}`);
+          ' >> "$GITHUB_OUTPUT"
+
+      - name: Publish package
+        if: steps.registry.outputs.publish == 'true'
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: bun publish --access public --ignore-scripts
+
+      - name: Skip duplicate version
+        if: steps.registry.outputs.publish != 'true'
+        run: echo "package.json version is already published on npm; skipping."

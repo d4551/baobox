@@ -17,16 +17,21 @@ import { Check } from './check.js';
 import { Clone } from './clone.js';
 import { Convert } from './convert.js';
 import { Create } from './create.js';
+import type { RuntimeContext } from '../shared/runtime-context.js';
 
 type ReferenceMap = Map<string, TSchema>;
 
 /** Repair a value to conform to a schema. Returns a new value (does not mutate). */
-export function Repair<T extends TSchema>(schema: T, value: unknown): StaticParse<T> {
+export function Repair<T extends TSchema>(
+  schema: T,
+  value: unknown,
+  context?: RuntimeContext,
+): StaticParse<T> {
   const converted = Convert(schema, Clone(value));
   const kind = schemaKind(schema);
 
   if (
-    Check(schema, converted)
+    Check(schema, converted, context)
     && kind !== 'Object'
     && kind !== 'Tuple'
     && kind !== 'Array'
@@ -35,7 +40,7 @@ export function Repair<T extends TSchema>(schema: T, value: unknown): StaticPars
     return converted as StaticParse<T>;
   }
 
-  return repairInternal(schema, converted, new Map()) as StaticParse<T>;
+  return repairInternal(schema, converted, new Map(), context) as StaticParse<T>;
 }
 
 function repairObject(schema: TObject, value: unknown, refs: ReferenceMap): Record<string, unknown> {
@@ -116,15 +121,25 @@ function repairRecord(schema: TRecord, value: unknown, refs: ReferenceMap): Reco
   return result;
 }
 
-function repairUnion(schema: TUnion, value: unknown, refs: ReferenceMap): unknown {
+function repairUnion(
+  schema: TUnion,
+  value: unknown,
+  refs: ReferenceMap,
+  context?: RuntimeContext,
+): unknown {
   for (const variant of schema.variants) {
-    const repaired = repairInternal(variant, value, refs);
-    if (Check(variant, repaired)) return repaired;
+    const repaired = repairInternal(variant, value, refs, context);
+    if (Check(variant, repaired, context)) return repaired;
   }
-  return schema.variants.length > 0 ? repairInternal(schema.variants[0]!, value, refs) : value;
+  return schema.variants.length > 0 ? repairInternal(schema.variants[0]!, value, refs, context) : value;
 }
 
-function repairInternal(schema: TSchema, value: unknown, refs: ReferenceMap): unknown {
+function repairInternal(
+  schema: TSchema,
+  value: unknown,
+  refs: ReferenceMap,
+  context?: RuntimeContext,
+): unknown {
   switch (schemaKind(schema)) {
     case 'Object':
       return repairObject(schema as TObject, value, refs);
@@ -135,32 +150,32 @@ function repairInternal(schema: TSchema, value: unknown, refs: ReferenceMap): un
     case 'Record':
       return repairRecord(schema as TRecord, value, refs);
     case 'Union':
-      return repairUnion(schema as TUnion, value, refs);
+      return repairUnion(schema as TUnion, value, refs, context);
     case 'Intersect': {
       let result = value;
       (schema as TIntersect).variants.forEach((variant) => {
-        result = repairInternal(variant, result, refs);
+        result = repairInternal(variant, result, refs, context);
       });
       return result;
     }
     case 'Optional':
-      return value === undefined ? undefined : repairInternal((schema as TOptional<TSchema>).item, value, refs);
+      return value === undefined ? undefined : repairInternal((schema as TOptional<TSchema>).item, value, refs, context);
     case 'Readonly':
-      return repairInternal((schema as TReadonly<TSchema>).item, value, refs);
+      return repairInternal((schema as TReadonly<TSchema>).item, value, refs, context);
     case 'Recursive': {
       const recursiveSchema = schema as TRecursive;
       const nextRefs = new Map(refs);
       nextRefs.set(recursiveSchema.name, recursiveSchema.schema);
-      return repairInternal(recursiveSchema.schema, value, nextRefs);
+      return repairInternal(recursiveSchema.schema, value, nextRefs, context);
     }
     case 'Ref': {
       const target = refs.get((schema as TRef).name);
-      return target === undefined ? value : repairInternal(target, value, refs);
+      return target === undefined ? value : repairInternal(target, value, refs, context);
     }
     case 'Decode':
     case 'Encode':
-      return repairInternal((schema as { inner: TSchema }).inner, value, refs);
+      return repairInternal((schema as { inner: TSchema }).inner, value, refs, context);
     default:
-      return Check(schema, value) ? value : Create(schema);
+      return Check(schema, value, context) ? value : Create(schema);
   }
 }

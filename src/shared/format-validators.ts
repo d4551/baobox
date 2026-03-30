@@ -16,7 +16,7 @@ import {
   UUID_RE,
 } from './format-constants.js';
 import { isValidJson, isValidRegex } from './regex-json.js';
-import { FormatRegistry } from './registries.js';
+import { resolveRuntimeContext, type RuntimeContextArg } from './runtime-context.js';
 
 /** @internal Luhn algorithm for credit card validation */
 export function luhnCheck(digits: string): boolean {
@@ -47,8 +47,13 @@ export function isValidISODate(value: string): boolean {
 }
 
 /** @internal Validate a string against named format constraints */
-export function validateFormat(value: string, format: string): boolean {
-  const custom = FormatRegistry.Get(format);
+export function validateFormat(
+  value: string,
+  format: string,
+  context?: RuntimeContextArg,
+): boolean {
+  const runtimeContext = resolveRuntimeContext(context);
+  const custom = runtimeContext.FormatRegistry.Get(format);
   if (custom !== undefined) return custom(value);
   switch (format) {
     case 'email': return EMAIL_RE.test(value);
@@ -74,14 +79,18 @@ export function validateFormat(value: string, format: string): boolean {
 }
 
 /** @internal Check string constraints (minLength, maxLength, pattern, format) */
-export function checkStringConstraints(schema: TSchema & Record<string, unknown>, value: string): boolean {
+export function checkStringConstraints(
+  schema: TSchema & Record<string, unknown>,
+  value: string,
+  context?: RuntimeContextArg,
+): boolean {
   if (schema.minLength !== undefined && value.length < (schema.minLength as number)) return false;
   if (schema.maxLength !== undefined && value.length > (schema.maxLength as number)) return false;
   if (schema.pattern !== undefined) {
     const regex = new RegExp(schema.pattern as string);
     if (!regex.test(value)) return false;
   }
-  return schema.format === undefined || validateFormat(value, schema.format as string);
+  return schema.format === undefined || validateFormat(value, schema.format as string, context);
 }
 
 /** @internal Check number constraints (min, max, exclusive, multipleOf) */

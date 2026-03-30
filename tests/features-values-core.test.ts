@@ -200,7 +200,7 @@ describe('Value.Clean', () => {
   it('preserves tuple extras when additionalItems is enabled', () => {
     const schema = B.Tuple([B.String(), B.Number()], { additionalItems: true });
     const result = Clean(schema, ['Ada', 37, true, 'extra']);
-    expect(result).toEqual(['Ada', 37, true, 'extra']);
+    expect(JSON.stringify(result)).toBe(JSON.stringify(['Ada', 37, true, 'extra']));
   });
 });
 

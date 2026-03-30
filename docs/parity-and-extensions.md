@@ -23,9 +23,15 @@ Current baobox-specific improvements include:
 
 - Bun-first package exports through the `bun` condition
 - `TryParse()` and `Validator.TryParse()` for structured, non-throwing normalization results
+- `TryDecode()`, `TryEncode()`, `TryCreate()`, and `TryRepair()` for result-first codec and value workflows
+- `Explain()` for localized diagnostics that preserve raw issue metadata
 - `Uint8ArrayCodec()` for base64 JSON payloads and runtime byte values
+- `DateCodec()`, `URLCodec()`, and `BigIntCodec()` for common interop-heavy values
 - Bun-native binary fast paths inside `Compile()` for byte-oriented schemas
-- Locale-aware validation messages driven from `baobox/system`
+- Compile caching plus portable validator artifacts
+- Locale-aware validation messages and registries driven from `baobox/system`
+- Official locale bundles for every declared locale code through `baobox/locale`
+- Standard Schema V1 adapters through `baobox/standard`
 
 These improvements extend the package, but they do not change the public `SchemaError` shape or the pass/fail semantics of validation.
 
@@ -35,7 +41,8 @@ Baobox keeps the following compatibility boundaries stable:
 
 - `SchemaError` stays `{ path, message, code }`
 - `Parse(schema, value)` remains the throwing parity path; `TryParse(schema, value)` is the baobox-only extension
-- `System.Locale` is the configuration entry point for localized error messages
+- `System.Locale` remains the default-process configuration entry point for localized error messages
+- `CreateRuntimeContext()` scopes registries, locale catalogs, and compile caching without changing the default globals
 - Published consumers should only rely on package entrypoints, not `src/*`
 - Subpath parity tests remain the guardrail for TypeBox-aligned runtime behavior
 

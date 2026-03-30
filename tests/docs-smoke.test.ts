@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import * as B from '../src/index.ts';
+import LocalePacks, { ko_KR } from '../src/locale/index.ts';
 import { System } from '../src/system/index.ts';
 import { Decode as ValueDecode } from '../src/value/decode.ts';
 import { Encode as ValueEncode } from '../src/value/encode.ts';
@@ -126,6 +127,28 @@ describe('documentation smoke: locale configuration', () => {
         path: '/',
         code: 'INVALID_TYPE',
         message: 'string이어야 합니다. 현재 값 유형: number',
+      },
+    ]);
+  });
+
+  it('uses baobox/locale for the named and default locale-pack exports', () => {
+    expect(LocalePacks.ko_KR).toBe(ko_KR);
+  });
+
+  it('uses a locale pack as the base for a custom scoped catalog', () => {
+    const context = B.CreateRuntimeContext({ localeCatalogs: [] });
+
+    context.Locale.Register('en_TEST', {
+      ...LocalePacks.en_US,
+      INVALID_TYPE: () => 'yarrr-invalid-type',
+    });
+    context.Locale.Set('en_TEST');
+
+    expect(B.Errors(B.String(), 42, context)).toEqual([
+      {
+        path: '/',
+        code: 'INVALID_TYPE',
+        message: 'yarrr-invalid-type',
       },
     ]);
   });

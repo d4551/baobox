@@ -1,6 +1,6 @@
 import type { Static } from '../type/index.js';
 import type { TSchema } from '../type/schema.js';
-import { TypeRegistry } from '../shared/utils.js';
+import { resolveRuntimeContext, type RuntimeContext, type RuntimeContextArg } from '../shared/runtime-context.js';
 import { checkCollectionKind } from './check-collections.js';
 import { checkExtensionKind } from './check-extensions.js';
 import { checkPrimitiveKind } from './check-primitives.js';
@@ -8,36 +8,59 @@ import { checkPrimitiveKind } from './check-primitives.js';
 /** Options for the Check function */
 export interface ValueCheckOptions {
   coerce?: boolean;
+  context?: RuntimeContext;
+}
+
+function resolveCheckContext(context?: RuntimeContextArg): RuntimeContext {
+  return resolveRuntimeContext(context);
 }
 
 /** Validate a value against a schema, returning a type guard */
 export function Check<T extends TSchema>(
   schema: T,
   value: unknown,
-  _options?: ValueCheckOptions,
+  options?: ValueCheckOptions | RuntimeContext,
 ): value is Static<T> {
-  return CheckInternal(schema, value, new Map());
+  return CheckInternal(schema, value, new Map(), resolveCheckContext(options));
 }
 
 /** @internal Recursive validation core */
-export function CheckInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): boolean {
+export function CheckInternal(
+  schema: TSchema,
+  value: unknown,
+  refs: Map<string, TSchema>,
+  context?: RuntimeContextArg,
+): boolean {
+  const runtimeContext = resolveCheckContext(context);
   const kind = (schema as Record<string, unknown>)['~kind'] as string | undefined;
 
-  const primitiveResult = checkPrimitiveKind(kind, schema, value);
+  const primitiveResult = checkPrimitiveKind(kind, schema, value, runtimeContext);
   if (primitiveResult !== undefined) {
     return primitiveResult;
   }
 
-  const collectionResult = checkCollectionKind(kind, schema, value, refs, CheckInternal);
+  const collectionResult = checkCollectionKind(
+    kind,
+    schema,
+    value,
+    refs,
+    (nextSchema, nextValue, nextRefs) => CheckInternal(nextSchema, nextValue, nextRefs, runtimeContext),
+  );
   if (collectionResult !== undefined) {
     return collectionResult;
   }
 
-  const extensionResult = checkExtensionKind(kind, schema, value, refs, CheckInternal);
+  const extensionResult = checkExtensionKind(
+    kind,
+    schema,
+    value,
+    refs,
+    (nextSchema, nextValue, nextRefs) => CheckInternal(nextSchema, nextValue, nextRefs, runtimeContext),
+  );
   if (extensionResult !== undefined) {
     return extensionResult;
   }
 
-  const customValidator = TypeRegistry.Get(kind ?? '');
+  const customValidator = runtimeContext.TypeRegistry.Get(kind ?? '');
   return customValidator ? customValidator(schema, value) : false;
 }

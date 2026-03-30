@@ -40,17 +40,4 @@ export const LocaleCodes = {
 } as const;
 
 export type LocaleCode = (typeof LocaleCodes)[keyof typeof LocaleCodes];
-
-let currentLocale: LocaleCode = LocaleCodes.en_US;
-
-export function getActiveLocale(): LocaleCode {
-  return currentLocale;
-}
-
-export function setActiveLocale(locale: LocaleCode): void {
-  currentLocale = locale;
-}
-
-export function resetActiveLocale(): void {
-  currentLocale = LocaleCodes.en_US;
-}
+export type LocaleIdentifier = LocaleCode | (string & {});

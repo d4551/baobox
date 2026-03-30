@@ -1,4 +1,5 @@
 import { Errors } from '../error/errors.js';
+import { Explain, TryCreate, TryDecode, TryEncode, TryRepair } from './result.js';
 import { Assert, AssertError } from './assert.js';
 import { Check } from './check.js';
 import { Clean } from './clean.js';
@@ -96,10 +97,12 @@ export { Diff };
 export { Encode };
 export { Equal };
 export { Errors };
+export { Explain };
 export { Hash };
 export { HasCodec };
 export { Mutate };
 export { Parse, ParseError, TryParse };
+export { TryCreate, TryDecode, TryEncode, TryRepair };
 export type { ParseFailure, ParseResult, ParseSuccess } from '../error/errors.js';
 export { Patch };
 export { Pipeline };
@@ -122,11 +125,16 @@ const Value = {
   Encode,
   Equal,
   Errors,
+  Explain,
   HasCodec,
   Hash,
   Mutate,
   Parse,
+  TryCreate,
+  TryDecode,
+  TryEncode,
   TryParse,
+  TryRepair,
   Patch,
   Pipeline,
   Pointer,

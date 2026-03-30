@@ -6,6 +6,7 @@ import { Default } from './default.js';
 import { Convert } from './convert.js';
 import { Clean } from './clean.js';
 import { Errors } from '../error/errors.js';
+import type { RuntimeContext } from '../shared/runtime-context.js';
 
 /** Error thrown when Value.Parse fails validation */
 export class ParseError extends Error {
@@ -17,15 +18,19 @@ export class ParseError extends Error {
   }
 }
 
-export function TryParse<T extends TSchema>(schema: T, value: unknown): ParseResult<StaticParse<T>> {
+export function TryParse<T extends TSchema>(
+  schema: T,
+  value: unknown,
+  context?: RuntimeContext,
+): ParseResult<StaticParse<T>> {
   let result = Clone(value);
   result = Default(schema, result);
   result = Convert(schema, result);
   result = Clean(schema, result);
-  if (!Check(schema, result)) {
+  if (!Check(schema, result, context)) {
     return {
       success: false,
-      errors: Errors(schema, result),
+      errors: Errors(schema, result, context),
     };
   }
   return {
@@ -35,8 +40,12 @@ export function TryParse<T extends TSchema>(schema: T, value: unknown): ParseRes
 }
 
 /** Full validation pipeline: Clone → Default → Convert → Clean → Check */
-export function Parse<T extends TSchema>(schema: T, value: unknown): StaticParse<T> {
-  const result = TryParse(schema, value);
+export function Parse<T extends TSchema>(
+  schema: T,
+  value: unknown,
+  context?: RuntimeContext,
+): StaticParse<T> {
+  const result = TryParse(schema, value, context);
   if (!result.success) {
     throw new ParseError(result.errors);
   }

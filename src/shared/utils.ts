@@ -41,6 +41,15 @@ export {
   isValidRegex,
 } from './regex-json.js';
 export {
+  CreateRuntimeContext,
+  getDefaultRuntimeContext,
+  resolveRuntimeContext,
+  RuntimeContext,
+  type RuntimeContextArg,
+  type RuntimeContextCarrier,
+  type RuntimeContextOptions,
+} from './runtime-context.js';
+export {
   FormatRegistry,
   Settings,
   type SettingsOptions,
@@ -48,3 +57,8 @@ export {
   TypeSystemPolicy,
   type TypeSystemPolicyOptions,
 } from './registries.js';
+export {
+  LocaleCodes,
+  type LocaleCode,
+  type LocaleIdentifier,
+} from './locale.js';

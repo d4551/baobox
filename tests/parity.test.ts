@@ -178,7 +178,7 @@ describe('Repair', () => {
   it('preserves tuple extras when additionalItems is enabled', () => {
     const schema = Tuple([String(), Number()], { additionalItems: true });
     const result = Repair(schema, ['hello', 1, true, 'extra']);
-    expect(result).toEqual(['hello', 1, true, 'extra']);
+    expect(JSON.stringify(result)).toBe(JSON.stringify(['hello', 1, true, 'extra']));
   });
 
   it('does not mutate the original value', () => {

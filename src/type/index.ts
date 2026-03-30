@@ -87,6 +87,11 @@ export type {
   TInfer,
 } from './extensions.js';
 export type {
+  TBigIntCodec,
+  TDateCodec,
+  TURLCodec,
+} from './codec-builtins.js';
+export type {
   TInstantiate,
   TProperties,
 } from './instantiation.js';
@@ -236,3 +241,4 @@ export * from './root-cyclic.js';
 export * from './root-instantiate.js';
 export { RecordPattern as RecordKeyAsPattern } from './root-template.js';
 export { Uint8ArrayCodec } from './uint8array-codec.js';
+export { BigIntCodec, DateCodec, URLCodec } from './codec-builtins.js';

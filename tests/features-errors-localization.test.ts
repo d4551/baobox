@@ -44,13 +44,13 @@ describe('localized runtime errors', () => {
     });
   });
 
-  it('falls back to English for locales without a dedicated catalog', () => {
+  it('falls back to English only for unknown locale identifiers', () => {
     const schema = B.String({ format: 'email' });
 
     System.Locale.Set(System.Locale.en_US);
     const english = B.Errors(schema, 'not-an-email')[0];
 
-    System.Locale.Set(System.Locale.fr_FR);
+    System.Locale.Set('zz_ZZ');
     const fallback = B.Errors(schema, 'not-an-email')[0];
 
     expect(fallback).toEqual(english);

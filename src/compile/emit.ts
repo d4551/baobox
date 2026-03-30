@@ -25,7 +25,7 @@ function emitStringCheck(schema: TString, valueExpr: string): string {
 }
 
 function emitNumberCheck(schema: TNumber, valueExpr: string): string {
-  const checks: string[] = [`typeof ${valueExpr} === 'number'`, `Number.isFinite(${valueExpr})`];
+  const checks: string[] = [`typeof ${valueExpr} === 'number'`, `(__policy.AllowNaN || Number.isFinite(${valueExpr}))`];
   if (schema.minimum !== undefined) checks.push(`${valueExpr} >= ${schema.minimum}`);
   if (schema.maximum !== undefined) checks.push(`${valueExpr} <= ${schema.maximum}`);
   if (schema.exclusiveMinimum !== undefined) checks.push(`${valueExpr} > ${schema.exclusiveMinimum}`);

@@ -1,11 +1,12 @@
 import { Settings } from '../shared/utils.js';
 import {
   LocaleCodes,
-  getActiveLocale,
-  resetActiveLocale,
-  setActiveLocale,
-  type LocaleCode,
+  type LocaleIdentifier,
 } from '../shared/locale.js';
+import {
+  CreateRuntimeContext,
+  getDefaultRuntimeContext,
+} from '../shared/runtime-context.js';
 import { Clone } from '../value/clone.js';
 import { Create } from '../value/create.js';
 import { Hash } from '../value/hash.js';
@@ -32,14 +33,23 @@ export const Hashing = {
 
 export const Locale = {
   ...LocaleCodes,
-  Get(): LocaleCode {
-    return getActiveLocale();
+  Entries() {
+    return getDefaultRuntimeContext().Locale.Entries();
   },
-  Set(locale: LocaleCode): void {
-    setActiveLocale(locale);
+  Get(): LocaleIdentifier {
+    return getDefaultRuntimeContext().Locale.Get();
+  },
+  Has(locale: LocaleIdentifier): boolean {
+    return getDefaultRuntimeContext().Locale.Has(locale);
+  },
+  Register(locale: LocaleIdentifier, catalog: import('../error/catalog-types.js').SchemaIssueCatalog): void {
+    getDefaultRuntimeContext().Locale.Register(locale, catalog);
   },
   Reset(): void {
-    resetActiveLocale();
+    getDefaultRuntimeContext().Locale.Reset();
+  },
+  Set(locale: LocaleIdentifier): void {
+    getDefaultRuntimeContext().Locale.Set(locale);
   },
 };
 
@@ -79,6 +89,10 @@ const System = {
   Hashing,
   Locale,
   Memory,
+  Runtime: {
+    Create: CreateRuntimeContext,
+    Default: getDefaultRuntimeContext,
+  },
   Settings,
 };
 

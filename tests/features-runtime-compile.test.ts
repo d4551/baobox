@@ -126,4 +126,24 @@ describe('Compile', () => {
     expect(validator.Check(new Uint8Array([1, 2, 3]))).toBe(true);
     expect(validator.Check(new Uint8Array([9, 9, 9]))).toBe(false);
   });
+
+  it('reuses cached validators for the same schema and context', () => {
+    const context = B.CreateRuntimeContext();
+    const schema = B.Object({ count: B.Number() }, { required: ['count'] });
+
+    const first = Compile(schema, { context });
+    const second = Compile(schema, { context });
+
+    expect(first).toBe(second);
+  });
+
+  it('loads portable validator artifacts', () => {
+    const schema = B.Object({ count: B.Number() }, { required: ['count'] });
+    const validator = Compile(schema);
+    const loaded = B.CompileFromArtifact(schema, validator.Artifact());
+
+    expect(loaded.Strategy()).toBe('artifact');
+    expect(loaded.Check({ count: 5 })).toBe(true);
+    expect(loaded.Check({ count: 'nope' })).toBe(false);
+  });
 });

@@ -27,4 +27,6 @@ export function IsLocalizedValidationError(value: unknown): value is LocalizedSc
     && hasStringField(value, 'localizedMessage');
 }
 
+export { Explain } from './errors.js';
 export type { ParseFailure, ParseResult, ParseSuccess, SchemaError } from './errors.js';
+export type { SchemaIssueDiagnostic } from './messages.js';
