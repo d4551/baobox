@@ -183,8 +183,8 @@ bun publish --access public
 ```
 
 - `prepublishOnly` runs `bun run verify`, so a live publish always rebuilds and reruns the test suite first.
-- GitHub Actions will auto-publish on pushes to `main` when `package.json` contains a version that is not already on npm.
-- Set the GitHub repository secret `NPM_TOKEN` before relying on the workflow for live releases.
+- GitHub Actions will attempt a publish on pushes to `main`, on published GitHub releases, and through manual workflow dispatch when `package.json` contains a version that is not already on npm.
+- The workflow configures the npm registry on the runner and then requires the repository secret `NPM_TOKEN` before attempting a live publish.
 - For a local first publish, authenticate once with `bunx npm login` before running `bun publish --access public`.
 - Local `.npmrc` files are gitignored so auth tokens do not end up in the repository.
 
