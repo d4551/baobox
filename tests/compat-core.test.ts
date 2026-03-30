@@ -50,7 +50,7 @@ describe('compat core primitives', () => {
     const schema = Number();
     expect(Check(schema, 42)).toBe(true);
     expect(Check(schema, 3.14)).toBe(true);
-    expect(Check(schema, Number.NaN)).toBe(false);
+    expect(Check(schema, globalThis.Number.NaN)).toBe(false);
     expect(Check(schema, '42')).toBe(false);
   });
 
@@ -67,7 +67,7 @@ describe('compat core primitives', () => {
     const schema = Integer();
     expect(Check(schema, 42)).toBe(true);
     expect(Check(schema, 3.14)).toBe(false);
-    expect(Check(schema, Number.NaN)).toBe(false);
+    expect(Check(schema, globalThis.Number.NaN)).toBe(false);
   });
 
   test('Boolean primitive', () => {

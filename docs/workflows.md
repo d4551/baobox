@@ -1,10 +1,11 @@
-# Choose Check vs Parse vs Compile
+# Choose Check vs TryParse vs Parse vs Compile
 
-Baobox exposes three primary runtime validation workflows. They share the same schema model, but they answer different questions.
+Baobox exposes four primary runtime validation workflows. They share the same schema model, but they answer different questions.
 
 | Need | API | Returns | Use when |
 | --- | --- | --- | --- |
 | Boolean validation | `Check(schema, value)` | `boolean` | You only need pass or fail |
+| Normalize without exceptions | `TryParse(schema, value)` | `ParseResult<T>` | You want normalized output and structured errors without try/catch |
 | Normalize then validate | `Parse(schema, value)` | normalized value or throws `ParseError` | You want defaults, conversions, and cleanup before validation |
 | Reusable hot-path validator | `Compile(schema)` | `Validator` | You will validate the same schema repeatedly |
 
@@ -22,6 +23,29 @@ const User = Object({
 
 Check(User, { id: 'usr_1', name: 'Ada' })
 // true
+```
+
+## TryParse
+
+`TryParse` runs the full value pipeline in this order:
+
+1. `Clone`
+2. `Default`
+3. `Convert`
+4. `Clean`
+5. `Check`
+
+Use it when the caller wants normalized output and structured errors without exception control flow.
+
+```ts
+import { Number, Object, TryParse } from 'baobox'
+
+const Counter = Object({
+  count: Number(),
+}, { required: ['count'], additionalProperties: false })
+
+TryParse(Counter, { count: '5', extra: true })
+// { success: true, value: { count: 5 } }
 ```
 
 ## Parse
@@ -52,7 +76,7 @@ Parse(Counter, { count: '5', extra: true })
 // { count: 5 }
 ```
 
-If the normalized value still fails validation, `Parse` throws `ParseError`.
+If the normalized value still fails validation, `Parse` throws `ParseError`. This preserves the upstream TypeBox-style contract. Prefer `TryParse` when the caller bans try/catch.
 
 ## Compile
 
@@ -67,6 +91,9 @@ const validator = Compile(Object({
 
 validator.Check({ count: 2 })
 // true
+
+validator.TryParse({ count: '2' })
+// { success: true, value: { count: 2 } }
 
 validator.Errors({ count: 0 })
 // [{ path: 'count', code: 'MINIMUM', message: 'Value must be >= 1' }]

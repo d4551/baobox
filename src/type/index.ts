@@ -63,6 +63,7 @@ export type {
   Static,
   StaticDecode,
   StaticEncode,
+  StaticParse,
 } from './schema.js';
 
 export type { Static as StaticType } from './schema.js';

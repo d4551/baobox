@@ -1,4 +1,4 @@
-import type { TSchema } from '../type/schema.js';
+import type { StaticParse, TSchema } from '../type/schema.js';
 
 function isBigIntText(value: string): boolean {
   const normalized = value.trim();
@@ -20,8 +20,8 @@ function isBigIntText(value: string): boolean {
 }
 
 /** Coerce compatible types to match a schema */
-export function Convert(schema: TSchema, value: unknown): unknown {
-  return ConvertInternal(schema, value, new Map());
+export function Convert<T extends TSchema>(schema: T, value: unknown): StaticParse<T> {
+  return ConvertInternal(schema, value, new Map()) as StaticParse<T>;
 }
 
 function ConvertInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {

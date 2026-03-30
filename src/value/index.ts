@@ -13,7 +13,7 @@ import { Equal } from './equal.js';
 import { Hash } from './hash.js';
 import { HasCodec } from './has-codec.js';
 import { Mutate } from './mutate.js';
-import { Parse, ParseError } from './parse.js';
+import { Parse, ParseError, TryParse } from './parse.js';
 import { Patch } from './patch.js';
 import { Pipeline } from './pipeline.js';
 import { Pointer } from './pointer.js';
@@ -99,7 +99,8 @@ export { Errors };
 export { Hash };
 export { HasCodec };
 export { Mutate };
-export { Parse, ParseError };
+export { Parse, ParseError, TryParse };
+export type { ParseFailure, ParseResult, ParseSuccess } from '../error/errors.js';
 export { Patch };
 export { Pipeline };
 export type { PipelineStage } from './pipeline.js';
@@ -125,6 +126,7 @@ const Value = {
   Hash,
   Mutate,
   Parse,
+  TryParse,
   Patch,
   Pipeline,
   Pointer,

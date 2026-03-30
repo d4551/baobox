@@ -35,6 +35,6 @@ export function runBenchmark(
     elapsedNs,
     nsPerOp,
     opsPerSecond,
-    note,
+    ...(note === undefined ? {} : { note }),
   };
 }

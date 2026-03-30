@@ -17,6 +17,11 @@ function keys(value: object): string[] {
   return Object.keys(value).sort();
 }
 
+function missingKeys(source: object, target: object): string[] {
+  const sourceKeys = new Set(keys(source));
+  return keys(target).filter((key) => !sourceKeys.has(key));
+}
+
 describe('subpath runtime export parity', () => {
   it('matches compile export keys', () => {
     expect(keys(BaoboxCompileModule)).toEqual(keys(TypeBoxCompileModule));
@@ -39,6 +44,7 @@ describe('subpath runtime export parity', () => {
   });
 
   it('matches value export keys', () => {
-    expect(keys(BaoboxValueModule)).toEqual(keys(TypeBoxValueModule));
+    expect(missingKeys(BaoboxValueModule, TypeBoxValueModule)).toEqual([]);
+    expect(typeof BaoboxValueModule.TryParse).toBe('function');
   });
 });

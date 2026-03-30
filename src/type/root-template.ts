@@ -173,7 +173,7 @@ export function RecordFromPattern(keyPattern: string, value: TSchema): TRecord<T
   return RecordConstruct(TemplateLiteralDecode(keyPattern), value);
 }
 
-export function RecordPattern(type: TRecord): string {
+export function RecordPattern(type: TRecord<TSchema, TSchema>): string {
   const key = type.key;
   const literal = getLiteralConst(key);
   if (literal !== undefined) {
@@ -197,10 +197,10 @@ export function RecordPattern(type: TRecord): string {
   }
 }
 
-export function RecordKey(type: TRecord): TSchema {
+export function RecordKey(type: TRecord<TSchema, TSchema>): TSchema {
   return type.key;
 }
 
-export function RecordValue(type: TRecord): TSchema {
+export function RecordValue(type: TRecord<TSchema, TSchema>): TSchema {
   return type.value;
 }

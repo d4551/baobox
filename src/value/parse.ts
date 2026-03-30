@@ -1,5 +1,5 @@
-import type { TSchema } from '../type/schema.js';
-import type { SchemaError } from '../error/errors.js';
+import type { StaticParse, TSchema } from '../type/schema.js';
+import type { ParseResult, SchemaError } from '../error/errors.js';
 import { Check } from './check.js';
 import { Clone } from './clone.js';
 import { Default } from './default.js';
@@ -17,15 +17,30 @@ export class ParseError extends Error {
   }
 }
 
-/** Full validation pipeline: Clone → Default → Convert → Clean → Check */
-export function Parse<T extends TSchema>(schema: T, value: unknown): unknown {
+export function TryParse<T extends TSchema>(schema: T, value: unknown): ParseResult<StaticParse<T>> {
   let result = Clone(value);
   result = Default(schema, result);
   result = Convert(schema, result);
   result = Clean(schema, result);
   if (!Check(schema, result)) {
-    const errors = Errors(schema, result);
-    throw new ParseError(errors);
+    return {
+      success: false,
+      errors: Errors(schema, result),
+    };
   }
-  return result;
+  return {
+    success: true,
+    value: result,
+  };
 }
+
+/** Full validation pipeline: Clone → Default → Convert → Clean → Check */
+export function Parse<T extends TSchema>(schema: T, value: unknown): StaticParse<T> {
+  const result = TryParse(schema, value);
+  if (!result.success) {
+    throw new ParseError(result.errors);
+  }
+  return result.value;
+}
+
+export type { ParseFailure, ParseResult, ParseSuccess } from '../error/errors.js';

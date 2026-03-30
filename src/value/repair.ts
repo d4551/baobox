@@ -1,4 +1,5 @@
 import type {
+  StaticParse,
   TArray,
   TIntersect,
   TObject,
@@ -20,7 +21,7 @@ import { Create } from './create.js';
 type ReferenceMap = Map<string, TSchema>;
 
 /** Repair a value to conform to a schema. Returns a new value (does not mutate). */
-export function Repair<T extends TSchema>(schema: T, value: unknown): unknown {
+export function Repair<T extends TSchema>(schema: T, value: unknown): StaticParse<T> {
   const converted = Convert(schema, Clone(value));
   const kind = schemaKind(schema);
 
@@ -31,10 +32,10 @@ export function Repair<T extends TSchema>(schema: T, value: unknown): unknown {
     && kind !== 'Array'
     && kind !== 'Record'
   ) {
-    return converted;
+    return converted as StaticParse<T>;
   }
 
-  return repairInternal(schema, converted, new Map());
+  return repairInternal(schema, converted, new Map()) as StaticParse<T>;
 }
 
 function repairObject(schema: TObject, value: unknown, refs: ReferenceMap): Record<string, unknown> {

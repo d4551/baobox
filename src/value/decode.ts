@@ -1,9 +1,9 @@
-import type { TSchema } from '../type/schema.js';
+import type { StaticDecode, TSchema } from '../type/schema.js';
 import { Instantiate } from '../type/instantiation.js';
 
 /** Run decode callbacks depth-first on a value */
-export function Decode(schema: TSchema, value: unknown): unknown {
-  return DecodeInternal(schema, value, new Map());
+export function Decode<T extends TSchema>(schema: T, value: unknown): StaticDecode<T> {
+  return DecodeInternal(schema, value, new Map()) as StaticDecode<T>;
 }
 
 function DecodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {

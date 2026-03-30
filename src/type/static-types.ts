@@ -1,4 +1,5 @@
 import type { StaticConst } from './static-const-types.js';
+import type { TCodec, TImmutable, TRefine } from './extensions.js';
 import type {
   ExpandTupleRest,
   TAny,
@@ -70,6 +71,15 @@ type StaticObject<
 type StaticIntersect<T extends TSchema[], Stack extends TSchema[]> =
   UnionToIntersection<{ [K in keyof T]: StaticValue<T[K], Stack> }[number]>;
 
+type StaticTuple<TItems extends TSchema[], Stack extends TSchema[]> = TItems extends [
+  infer Head extends TSchema,
+  ...infer Tail extends TSchema[],
+]
+  ? [StaticValue<Head, Stack>, ...StaticTuple<Tail, Stack>]
+  : TItems extends []
+    ? []
+    : StaticValue<TItems[number], Stack>[];
+
 type StaticOptional<T extends TSchema, Stack extends TSchema[]> = StaticValue<T, Stack> | undefined;
 
 type StaticPartial<T extends Record<string, TSchema>, Stack extends TSchema[]> = {
@@ -109,7 +119,7 @@ type StaticValue<T, Stack extends TSchema[]> = T extends TString
                           : T extends TArray<infer I>
                             ? StaticValue<I, Stack>[]
                             : T extends TTuple<infer I>
-                              ? { [K in keyof ExpandTupleRest<I>]: StaticValue<ExpandTupleRest<I>[K], Stack> }
+                              ? StaticTuple<ExpandTupleRest<I>, Stack>
                               : T extends TObject<infer P, infer R, infer O>
                                 ? StaticObject<P, Extract<R, keyof P>, Extract<O, keyof P>, Stack>
                                 : T extends TRecord<infer _K, infer V>
@@ -194,7 +204,23 @@ type StaticValue<T, Stack extends TSchema[]> = T extends TString
                                                                                                 ? symbol
                                                                                                 : unknown;
 
-export type StaticDecode<T extends TSchema> = Static<T, 'static'>;
-export type StaticEncode<T extends TSchema> = Static<T, 'static'>;
+type StaticDecodeValue<T, Stack extends TSchema[]> = T extends TCodec<infer _Inner, infer Decoded>
+  ? Decoded
+  : T extends TRefine<infer Inner>
+    ? StaticDecodeValue<Inner, Stack>
+    : T extends TImmutable<infer Inner>
+      ? Readonly<StaticDecodeValue<Inner, Stack>>
+      : StaticValue<T, Stack>;
+
+type StaticEncodeValue<T, Stack extends TSchema[]> = T extends TCodec<infer Inner, infer _Decoded>
+  ? StaticValue<Inner, Stack>
+  : T extends TRefine<infer Inner>
+    ? StaticEncodeValue<Inner, Stack>
+    : T extends TImmutable<infer Inner>
+      ? Readonly<StaticEncodeValue<Inner, Stack>>
+      : StaticValue<T, Stack>;
+
+export type StaticDecode<T extends TSchema> = StaticDecodeValue<T, []>;
+export type StaticEncode<T extends TSchema> = StaticEncodeValue<T, []>;
 export type StaticParse<T extends TSchema> = Static<T, 'static'>;
 export type { UnionToIntersection } from './static-shared-types.js';

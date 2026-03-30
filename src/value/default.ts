@@ -1,4 +1,4 @@
-import type { TSchema } from '../type/schema.js';
+import type { StaticParse, TSchema } from '../type/schema.js';
 
 function cloneValue<T>(value: T): T {
   return (globalThis as typeof globalThis & {
@@ -7,8 +7,8 @@ function cloneValue<T>(value: T): T {
 }
 
 /** Apply default values from a schema to undefined/missing properties in a value */
-export function Default(schema: TSchema, value: unknown): unknown {
-  return DefaultInternal(schema, value, new Map());
+export function Default<T extends TSchema>(schema: T, value: unknown): StaticParse<T> {
+  return DefaultInternal(schema, value, new Map()) as StaticParse<T>;
 }
 
 function DefaultInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {

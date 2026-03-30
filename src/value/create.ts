@@ -1,4 +1,4 @@
-import type { TSchema, TObject } from '../type/schema.js';
+import type { Static, TSchema, TObject } from '../type/schema.js';
 
 function cloneValue<T>(value: T): T {
   return (globalThis as typeof globalThis & {
@@ -7,8 +7,8 @@ function cloneValue<T>(value: T): T {
 }
 
 /** Generate a default-populated value matching the schema shape */
-export function Create(schema: TSchema): unknown {
-  return CreateInternal(schema, new Map());
+export function Create<T extends TSchema>(schema: T): Static<T> {
+  return CreateInternal(schema, new Map()) as Static<T>;
 }
 
 function CreateInternal(schema: TSchema, refs: Map<string, TSchema>): unknown {

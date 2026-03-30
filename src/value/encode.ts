@@ -1,9 +1,9 @@
-import type { TSchema } from '../type/schema.js';
+import type { StaticEncode, TSchema } from '../type/schema.js';
 import { Instantiate } from '../type/instantiation.js';
 
 /** Run encode callbacks depth-first on a value */
-export function Encode(schema: TSchema, value: unknown): unknown {
-  return EncodeInternal(schema, value, new Map());
+export function Encode<T extends TSchema>(schema: T, value: unknown): StaticEncode<T> {
+  return EncodeInternal(schema, value, new Map()) as StaticEncode<T>;
 }
 
 function EncodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {

@@ -106,11 +106,11 @@ describe('DateFormat (renamed)', () => {
 describe('Uint8ArrayCodec', () => {
   it('encodes and decodes base64 byte payloads', () => {
     const schema = B.Uint8ArrayCodec({ minByteLength: 2, maxByteLength: 4 });
-    const encoded = Encode(schema, new Uint8Array([1, 2, 3])) as string;
+    const encoded = Encode(schema, new Uint8Array([1, 2, 3]));
     expect(B.Check(schema, encoded)).toBe(true);
     const decoded = Decode(schema, encoded);
     expect(decoded).toBeInstanceOf(Uint8Array);
-    expect(Array.from(decoded as Uint8Array)).toEqual([1, 2, 3]);
+    expect(Array.from(decoded)).toEqual([1, 2, 3]);
   });
 
   it('enforces decoded byte-length constraints on encoded strings', () => {
@@ -145,7 +145,7 @@ describe('Value.Create', () => {
 
   it('creates default-populated objects', () => {
     const schema = B.Object({ name: B.String(), age: B.Number() });
-    const value = Create(schema) as Record<string, unknown>;
+    const value = Create(schema);
     expect(value.name).toBe('');
     expect(value.age).toBe(0);
   });
@@ -168,7 +168,7 @@ describe('Value.Default', () => {
       name: B.String({ default: 'anon' }),
       age: B.Number({ default: 0 }),
     });
-    const result = Default(schema, { name: undefined, age: undefined }) as Record<string, unknown>;
+    const result = Default(schema, { name: undefined, age: undefined });
     expect(result.name).toBe('anon');
     expect(result.age).toBe(0);
   });
@@ -177,22 +177,23 @@ describe('Value.Default', () => {
     const schema = B.Object({
       name: B.String({ default: 'anon' }),
     });
-    const result = Default(schema, { name: 'Bob' }) as Record<string, unknown>;
+    const result = Default(schema, { name: 'Bob' });
     expect(result.name).toBe('Bob');
   });
 });
 
 describe('Value.Clean', () => {
   it('removes extraneous properties', () => {
-    const schema = B.Object({ name: B.String() }, { additionalProperties: false } as Partial<Omit<B.TObject, "'~kind' | 'properties'">>);
-    const result = Clean(schema, { name: 'Alice', extra: 42 }) as Record<string, unknown>;
+    const options = { additionalProperties: false } satisfies Partial<Omit<B.TObject, "'~kind' | 'properties'">>;
+    const schema = B.Object({ name: B.String() }, options);
+    const result = Clean(schema, { name: 'Alice', extra: 42 });
     expect(result.name).toBe('Alice');
-    expect(result.extra).toBeUndefined();
+    expect('extra' in result).toBe(false);
   });
 
   it('preserves all defined properties', () => {
     const schema = B.Object({ a: B.String(), b: B.Number() });
-    const result = Clean(schema, { a: 'x', b: 1 }) as Record<string, unknown>;
+    const result = Clean(schema, { a: 'x', b: 1 });
     expect(result).toEqual({ a: 'x', b: 1 });
   });
 });
@@ -227,7 +228,7 @@ describe('Value.Convert', () => {
 
   it('converts nested object properties', () => {
     const schema = B.Object({ count: B.Number() });
-    const result = Convert(schema, { count: '5' }) as Record<string, unknown>;
+    const result = Convert(schema, { count: '5' });
     expect(result.count).toBe(5);
   });
 });

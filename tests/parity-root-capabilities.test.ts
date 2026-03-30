@@ -8,7 +8,7 @@ describe('root capability helpers', () => {
       nickname: Type.OptionalAdd(Type.String()),
     });
 
-    expect(Type.RequiredArray(Schema.properties as Record<string, Type.TSchema>)).toEqual(['id']);
+    expect(Type.RequiredArray(Schema.properties)).toEqual(['id']);
     expect(Schema.required).toEqual(['id']);
     expect(Schema.optional).toEqual(['nickname']);
   });
@@ -23,10 +23,10 @@ describe('root capability helpers', () => {
   });
 
   it('builds record helpers from key patterns', () => {
-    const schema = Type.RecordConstruct(Type.String(), Type.Number()) as Type.TSchema & { key: Type.TSchema; value: Type.TSchema };
-    expect(Type.RecordPattern(schema as Type.TRecord)).toBe(Type.StringKey);
-    expect(Type.RecordKey(schema as Type.TRecord)['~kind']).toBe('String');
-    expect(Type.RecordValue(schema as Type.TRecord)['~kind']).toBe('Number');
+    const schema = Type.RecordConstruct(Type.String(), Type.Number());
+    expect(Type.RecordPattern(schema)).toBe(Type.StringKey);
+    expect(Type.RecordKey(schema)['~kind']).toBe('String');
+    expect(Type.RecordValue(schema)['~kind']).toBe('Number');
   });
 
   it('compares and broadens compatible types', () => {

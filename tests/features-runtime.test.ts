@@ -49,13 +49,55 @@ describe('Compile', () => {
 
   it('creates default values via Create()', () => {
     const v = Compile(B.Object({ name: B.String({ default: 'anon' }) }));
-    const val = v.Create() as Record<string, unknown>;
+    const val = v.Create();
     expect(val.name).toBe('anon');
   });
 
   it('runs Parse pipeline', () => {
     const v = Compile(B.Object({ count: B.Number() }));
-    const result = v.Parse({ count: '5' }) as Record<string, unknown>;
+    const result = v.Parse({ count: '5' });
+    expect(result.count).toBe(5);
+  });
+
+  it('returns structured results via TryParse()', () => {
+    const v = Compile(B.Object({ count: B.Number() }, { required: ['count'] }));
+    expect(v.TryParse({ count: '5' })).toEqual({
+      success: true,
+      value: { count: 5 },
+    });
+    expect(v.TryParse({ count: 'nope' })).toEqual({
+      success: false,
+      errors: [
+        {
+          path: 'count',
+          code: 'INVALID_TYPE',
+          message: 'Expected number, got string',
+        },
+      ],
+    });
+  });
+
+  it('applies defaults via Default()', () => {
+    const v = Compile(B.Object({
+      name: B.String({ default: 'anon' }),
+      age: B.Number({ default: 0 }),
+    }));
+    const result = v.Default({ name: undefined, age: undefined });
+    expect(result.name).toBe('anon');
+    expect(result.age).toBe(0);
+  });
+
+  it('cleans values via Clean()', () => {
+    const options = { additionalProperties: false } satisfies Partial<Omit<B.TObject, "'~kind' | 'properties'">>;
+    const v = Compile(B.Object({ name: B.String() }, options));
+    const result = v.Clean({ name: 'Ada', extra: 1 });
+    expect(result.name).toBe('Ada');
+    expect('extra' in result).toBe(false);
+  });
+
+  it('converts values via Convert()', () => {
+    const v = Compile(B.Object({ count: B.Number() }));
+    const result = v.Convert({ count: '5' });
     expect(result.count).toBe(5);
   });
 
@@ -212,7 +254,7 @@ describe('TypeRegistry', () => {
     B.TypeRegistry.Set('PositiveNumber', (_schema, value) =>
       typeof value === 'number' && value > 0
     );
-    const schema = { '~kind': 'PositiveNumber' } as B.TSchema;
+    const schema: B.TSchema = { '~kind': 'PositiveNumber' };
     expect(B.Check(schema, 5)).toBe(true);
     expect(B.Check(schema, -1)).toBe(false);
     B.TypeRegistry.Delete('PositiveNumber');

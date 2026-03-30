@@ -4,6 +4,7 @@ export * as Type from './typebox.js';
 import * as Type from './typebox.js';
 
 export type { Static, StaticDecode, StaticEncode } from './type/index.js';
+export type { ParseFailure, ParseResult, ParseSuccess } from './error/index.js';
 export {
   Check,
   Clone,
@@ -16,6 +17,7 @@ export {
   Mutate,
   Parse,
   ParseError,
+  TryParse,
   Assert,
   AssertError,
   Diff,

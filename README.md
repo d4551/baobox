@@ -16,7 +16,7 @@ Requirements:
 ## Quick Start
 
 ```ts
-import Type, { Check, Compile, Parse } from 'baobox'
+import Type, { Check, Compile, Parse, TryParse } from 'baobox'
 
 const User = Type.Object({
   id: Type.String(),
@@ -25,7 +25,9 @@ const User = Type.Object({
 }, { required: ['id', 'email', 'age'] })
 
 Check(User, { id: 'usr_1', email: 'ada@example.com', age: 37 })
-Parse(Type.Object({ count: Type.Number() }), { count: '5' })
+
+TryParse(Type.Object({ count: Type.Number() }), { count: '5' })
+// { success: true, value: { count: 5 } }
 
 const validator = Compile(User)
 validator.Check({ id: 'usr_1', email: 'ada@example.com', age: 37 })
@@ -34,6 +36,7 @@ validator.Check({ id: 'usr_1', email: 'ada@example.com', age: 37 })
 ## Choose A Workflow
 
 - `Check(schema, value)` returns a boolean. Use it when you only need pass/fail validation.
+- `TryParse(schema, value)` runs the full normalization pipeline and returns `{ success, value | errors }`. Use it when try/catch is banned or undesirable.
 - `Parse(schema, value)` runs the full value pipeline: clone, default, convert, clean, then validate. It throws `ParseError` when validation still fails.
 - `Compile(schema)` creates a reusable validator for hot paths. `Validator.Errors()` uses the same localized error messages as `Value.Errors()`.
 
@@ -71,7 +74,7 @@ Errors(String(), 42)
 
 ## Guides
 
-- [Choose Check vs Parse vs Compile](docs/workflows.md)
+- [Choose Check vs TryParse vs Parse vs Compile](docs/workflows.md)
 - [Use Script, Module, and custom registries](docs/script-module-registries.md)
 - [Package contract and supported imports](docs/package-contract.md)
 - [Parity policy and baobox-only additions](docs/parity-and-extensions.md)

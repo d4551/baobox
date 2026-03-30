@@ -12,8 +12,9 @@ import type {
 } from './schema.js';
 
 type Simplify<T> = { [K in keyof T]: T[K] };
+type TObjectLike = TObject<Record<string, TSchema>, string, string>;
 
-type EvaluateProperties<T extends TObject | TIntersect<TObject[]>> = T extends TObject<infer P>
+type EvaluateProperties<T extends TObjectLike | TIntersect<TObjectLike[]>> = T extends TObject<infer P>
   ? P
   : T extends TIntersect<infer V>
     ? Simplify<UnionToIntersection<V[number] extends TObject<infer P> ? P : never>>
@@ -36,7 +37,7 @@ export function Intersect<TOptions extends TSchema[]>(
 }
 
 /** Flatten an Object or Intersect<Object[]> into a single Object schema */
-export function Evaluate<T extends TObject | TIntersect<TObject[]>>(
+export function Evaluate<T extends TObjectLike | TIntersect<TObjectLike[]>>(
   schema: T,
 ): TObject<EvaluateProperties<T>> {
   if (schema['~kind'] === 'Object') {
@@ -119,7 +120,7 @@ export function Recursive<T extends TSchema>(
 }
 
 /** Create a discriminated union schema */
-export function Variant<TOptions extends TObject[]>(
+export function Variant<TOptions extends TObjectLike[]>(
   discriminator: string,
   variants: TOptions,
   options?: Partial<Omit<TUnion<TOptions>, "'~kind' | 'variants' | 'discriminator'">>,

@@ -16,6 +16,8 @@ import type {
   TObject,
 } from './schema.js';
 
+type TObjectLike = TObject<Record<string, TSchema>, string, string>;
+
 /** Create an Exclude schema (Left ∩ ¬Right) */
 export function Exclude<TLeft extends TSchema, TRight extends TSchema>(
   left: TLeft,
@@ -35,7 +37,7 @@ export function Extract<TLeft extends TSchema, TRight extends TSchema>(
 }
 
 /** Create a KeyOf schema (extracts keys of an object) */
-export function KeyOf<T extends TObject>(
+export function KeyOf<T extends TObjectLike>(
   object: T,
   options?: Partial<Omit<TKeyOf<T>, "'~kind' | 'object'">>,
 ): TKeyOf<T> {
@@ -43,7 +45,7 @@ export function KeyOf<T extends TObject>(
 }
 
 /** Create a Partial schema (all properties optional) */
-export function Partial<T extends TObject>(
+export function Partial<T extends TObjectLike>(
   object: T,
   options?: Partial<Omit<TPartial<T>, "'~kind' | 'object'">>,
 ): TPartial<T> {
@@ -51,7 +53,7 @@ export function Partial<T extends TObject>(
 }
 
 /** Create a Required schema (all properties required) */
-export function Required<T extends TObject>(
+export function Required<T extends TObjectLike>(
   object: T,
   options?: Partial<Omit<TRequired<T>, "'~kind' | 'object'">>,
 ): TRequired<T> {
@@ -59,7 +61,7 @@ export function Required<T extends TObject>(
 }
 
 /** Create a Pick schema (subset of object properties) */
-export function Pick<T extends TObject, K extends keyof T['properties']>(
+export function Pick<T extends TObjectLike, K extends keyof T['properties']>(
   object: T,
   keys: K[],
   options?: Partial<Omit<TPick<T, K>, "'~kind' | 'object' | 'keys'">>,
@@ -68,7 +70,7 @@ export function Pick<T extends TObject, K extends keyof T['properties']>(
 }
 
 /** Create an Omit schema (object without specified properties) */
-export function Omit<T extends TObject, K extends keyof T['properties']>(
+export function Omit<T extends TObjectLike, K extends keyof T['properties']>(
   object: T,
   keys: K[],
   options?: Partial<Omit<TOmit<T, K>, "'~kind' | 'object' | 'keys'">>,
@@ -114,7 +116,7 @@ export function Unsafe<T = unknown>(
 }
 
 /** Create an Index schema (value-type lookup by key) */
-export function Index<T extends TObject, TKey extends TSchema = TSchema>(
+export function Index<T extends TObjectLike, TKey extends TSchema = TSchema>(
   object: T,
   key?: TKey,
   options?: Partial<Omit<TIndex<T, TKey>, "'~kind' | 'object' | 'key'">>,
@@ -128,7 +130,7 @@ export function Index<T extends TObject, TKey extends TSchema = TSchema>(
 }
 
 /** Create a Mapped schema (delegates to inner object, with optional transform) */
-export function Mapped<T extends TObject>(
+export function Mapped<T extends TObjectLike>(
   object: T,
   transform?: (schema: TSchema, key: string) => TSchema,
   options?: Partial<Omit<TMapped<T>, "'~kind' | 'object' | 'transform'">>,

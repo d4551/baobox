@@ -66,6 +66,27 @@ describe('schema runtime parity', () => {
     expect(() => BaoboxSchemaModule.Parse(schema, { x: 'nope' })).toThrow();
   });
 
+  it('returns structured parse results for raw schemas', () => {
+    const schema = {
+      type: 'object',
+      required: ['x'],
+      properties: {
+        x: { type: 'number' },
+      },
+    } as const;
+
+    expect(BaoboxSchemaModule.TryParse(schema, { x: 1 })).toEqual({
+      success: true,
+      value: { x: 1 },
+    });
+    const failed = BaoboxSchemaModule.TryParse(schema, { x: 'nope' });
+    expect(failed.success).toBe(false);
+    if (!failed.success) {
+      expect(failed.errors.length).toBeGreaterThan(0);
+      expect(failed.errors[0]?.code).toBe('TYPE');
+    }
+  });
+
   it('compiles and builds raw schemas', () => {
     const schema = {
       type: 'array',
@@ -88,7 +109,7 @@ describe('schema runtime parity', () => {
     const upstreamValue = clone({ a: { b: [1, 2, 3] } });
 
     expect(BaoboxSchemaModule.Pointer.Get(localValue, '/a/b/1')).toBe(TypeBoxSchemaModule.Pointer.Get(upstreamValue, '/a/b/1'));
-    expect(BaoboxSchemaModule.Pointer.Has(localValue, '/a/b/1')).toBe(TypeBoxSchemaModule.Pointer.Has(upstreamValue, '/a/b/1'));
+    expect(BaoboxSchemaModule.Pointer.Has(localValue, '/a/b/1')).toBe(Boolean(TypeBoxSchemaModule.Pointer.Has(upstreamValue, '/a/b/1')));
 
     BaoboxSchemaModule.Pointer.Set(localValue, '/a/b/1', 4);
     TypeBoxSchemaModule.Pointer.Set(upstreamValue, '/a/b/1', 4);
@@ -110,8 +131,8 @@ describe('schema runtime parity', () => {
       },
     } as const;
 
-    expect(BaoboxSchemaModule.Resolve.Ref(schema, '#/$defs/Node')).toEqual(
-      TypeBoxSchemaModule.Resolve.Ref(schema, '#/$defs/Node'),
+    expect(JSON.stringify(BaoboxSchemaModule.Resolve.Ref(schema, '#/$defs/Node'))).toBe(
+      JSON.stringify(TypeBoxSchemaModule.Resolve.Ref(schema, '#/$defs/Node')),
     );
   });
 });

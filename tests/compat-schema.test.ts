@@ -60,8 +60,8 @@ describe('compat schema emission', () => {
   test('Object emits object type with properties', () => {
     const result = To(Object({ name: String(), age: Number() }));
     expect(result.type).toBe('object');
-    expect(result.properties?.name.type).toBe('string');
-    expect(result.properties?.age.type).toBe('number');
+    expect(result.properties?.name?.type).toBe('string');
+    expect(result.properties?.age?.type).toBe('number');
   });
 
   test('Record emits propertyNames from key schema', () => {
@@ -87,7 +87,7 @@ describe('compat schema emission', () => {
     expect(result.required).toEqual(['name']);
   });
 
-  test('Conditional emits then as anyOf', () => {
+  test('Conditional emits then using anyOf', () => {
     const result = To(Conditional(String({ minLength: 3 }), [Literal('foo'), Literal('bar')], Number()));
     expect(result.then).toEqual({ anyOf: [{ const: 'foo' }, { const: 'bar' }] });
   });

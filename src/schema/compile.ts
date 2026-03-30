@@ -1,10 +1,10 @@
-import type { SchemaError } from '../error/errors.js';
+import type { ParseResult, SchemaError } from '../error/errors.js';
 import { Build } from './build.js';
 import { Errors } from './errors.js';
-import { Parse, ParseError } from './parse.js';
-import type { SchemaContext, XSchema } from './shared.js';
+import { Parse, TryParse } from './parse.js';
+import type { SchemaContext, XSchema, XStatic } from './shared.js';
 
-export class Validator<Schema extends XSchema = XSchema, Value = unknown> {
+export class Validator<Schema extends XSchema = XSchema, Value = XStatic<Schema>> {
   private readonly build;
   private readonly result;
 
@@ -26,11 +26,11 @@ export class Validator<Schema extends XSchema = XSchema, Value = unknown> {
   }
 
   Parse(value: unknown): Value {
-    if (this.result.Check(value)) {
-      return value as Value;
-    }
-    const [, errors] = Errors(this.build.Context(), this.build.Schema(), value);
-    throw new ParseError(this.build.Schema(), value, errors);
+    return Parse(this.build.Context(), this.build.Schema(), value) as Value;
+  }
+
+  TryParse(value: unknown): ParseResult<Value> {
+    return TryParse(this.build.Context(), this.build.Schema(), value) as ParseResult<Value>;
   }
 
   Errors(value: unknown): [boolean, SchemaError[]] {

@@ -1,4 +1,4 @@
-import type { SchemaError } from './errors.js';
+import type { ParseResult, SchemaError } from './errors.js';
 
 type LocalizedSchemaError = SchemaError & {
   locale: string;
@@ -27,4 +27,4 @@ export function IsLocalizedValidationError(value: unknown): value is LocalizedSc
     && hasStringField(value, 'localizedMessage');
 }
 
-export type { SchemaError } from './errors.js';
+export type { ParseFailure, ParseResult, ParseSuccess, SchemaError } from './errors.js';

@@ -64,11 +64,11 @@ describe('Value.Hash', () => {
 
 describe('Value.Mutate', () => {
   it('mutates object in place', () => {
-    const target = { a: 1, b: 2 };
+    const target: { a: number; b?: number; c?: number } = { a: 1, b: 2 };
     Mutate(target, { a: 10, c: 3 });
     expect(target.a).toBe(10);
-    expect((target as Record<string, unknown>).b).toBeUndefined();
-    expect((target as Record<string, unknown>).c).toBe(3);
+    expect(target.b).toBeUndefined();
+    expect(target.c).toBe(3);
   });
 
   it('mutates arrays in place', () => {
@@ -81,9 +81,27 @@ describe('Value.Mutate', () => {
 describe('Value.Parse', () => {
   it('succeeds with valid data', () => {
     const schema = B.Object({ name: B.String(), age: B.Number() });
-    const result = Parse(schema, { name: 'Alice', age: 30 }) as Record<string, unknown>;
+    const result = Parse(schema, { name: 'Alice', age: 30 });
     expect(result.name).toBe('Alice');
     expect(result.age).toBe(30);
+  });
+
+  it('returns structured errors without exceptions via TryParse', () => {
+    const schema = B.Object({ name: B.String() }, { required: ['name'] });
+    expect(B.TryParse(schema, { name: 'Alice' })).toEqual({
+      success: true,
+      value: { name: 'Alice' },
+    });
+    expect(B.TryParse(schema, { name: null })).toEqual({
+      success: false,
+      errors: [
+        {
+          path: 'name',
+          code: 'INVALID_TYPE',
+          message: 'Expected string, got object',
+        },
+      ],
+    });
   });
 
   it('throws ParseError with invalid data', () => {
@@ -93,7 +111,7 @@ describe('Value.Parse', () => {
 
   it('applies conversions in the pipeline', () => {
     const schema = B.Object({ count: B.Number() });
-    const result = Parse(schema, { count: '5' }) as Record<string, unknown>;
+    const result = Parse(schema, { count: '5' });
     expect(result.count).toBe(5);
   });
 });
@@ -103,23 +121,23 @@ describe('Value.Parse', () => {
 // -------------------------------------------------------------------------
 describe('Value.Decode', () => {
   it('runs decode transforms', () => {
-    const schema = B.Decode(B.String(), (v) => (v as string).toUpperCase());
+    const schema = B.Decode(B.String(), (value) => globalThis.String(value).toUpperCase());
     const result = Decode(schema, 'hello');
     expect(result).toBe('HELLO');
   });
 
   it('decodes nested objects', () => {
     const schema = B.Object({
-      name: B.Decode(B.String(), (v) => (v as string).trim()),
+      name: B.Decode(B.String(), (value) => globalThis.String(value).trim()),
     });
-    const result = Decode(schema, { name: '  Alice  ' }) as Record<string, unknown>;
+    const result = Decode(schema, { name: '  Alice  ' });
     expect(result.name).toBe('Alice');
   });
 });
 
 describe('Value.Encode', () => {
   it('runs encode transforms', () => {
-    const schema = B.Encode(B.String(), (v) => (v as string).toLowerCase());
+    const schema = B.Encode(B.String(), (value) => globalThis.String(value).toLowerCase());
     const result = Encode(schema, 'HELLO');
     expect(result).toBe('hello');
   });
@@ -176,9 +194,7 @@ describe('Value.Patch', () => {
     const a = { x: 1, y: 2 };
     const b = { x: 10, z: 3 };
     const edits = Diff(a, b);
-    const result = Patch(a, edits) as Record<string, unknown>;
-    expect(result.x).toBe(10);
-    expect(result.z).toBe(3);
+    expect(JSON.stringify(Patch(a, edits))).toBe(JSON.stringify(b));
   });
 });
 

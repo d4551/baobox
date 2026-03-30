@@ -86,3 +86,22 @@ Registry notes:
 - Keep custom names stable. They become part of your schema contract.
 - Clean up temporary test-only registrations with `Delete()`.
 - `TypeRegistry` affects runtime validation. It does not add JSON Schema emission automatically.
+
+## Codec
+
+Use `Codec()` when you want typed decode and encode transforms without writing callback casts.
+
+```ts
+import { Codec, String } from 'baobox'
+import { Decode, Encode } from 'baobox/value'
+
+const Trimmed = Codec(String())
+  .Decode((value) => value.trim())
+  .Encode((value) => value.toUpperCase())
+
+Decode(Trimmed, '  ada  ')
+// "ada"
+
+Encode(Trimmed, 'ada')
+// "ADA"
+```

@@ -22,6 +22,7 @@ This is why root parity is tested as upstream-subset parity instead of exact key
 Current baobox-specific improvements include:
 
 - Bun-first package exports through the `bun` condition
+- `TryParse()` and `Validator.TryParse()` for structured, non-throwing normalization results
 - `Uint8ArrayCodec()` for base64 JSON payloads and runtime byte values
 - Bun-native binary fast paths inside `Compile()` for byte-oriented schemas
 - Locale-aware validation messages driven from `baobox/system`
@@ -33,6 +34,7 @@ These improvements extend the package, but they do not change the public `Schema
 Baobox keeps the following compatibility boundaries stable:
 
 - `SchemaError` stays `{ path, message, code }`
+- `Parse(schema, value)` remains the throwing parity path; `TryParse(schema, value)` is the baobox-only extension
 - `System.Locale` is the configuration entry point for localized error messages
 - Published consumers should only rely on package entrypoints, not `src/*`
 - Subpath parity tests remain the guardrail for TypeBox-aligned runtime behavior

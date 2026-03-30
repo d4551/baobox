@@ -1,8 +1,8 @@
-import type { TSchema } from '../type/schema.js';
+import type { StaticParse, TSchema } from '../type/schema.js';
 
 /** Remove properties not defined in the schema from a value */
-export function Clean(schema: TSchema, value: unknown): unknown {
-  return CleanInternal(schema, value, new Map());
+export function Clean<T extends TSchema>(schema: T, value: unknown): StaticParse<T> {
+  return CleanInternal(schema, value, new Map()) as StaticParse<T>;
 }
 
 function CleanInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {

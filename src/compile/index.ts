@@ -1,4 +1,8 @@
 import type {
+  Static,
+  StaticDecode,
+  StaticEncode,
+  StaticParse,
   TArray,
   TEnum,
   TInteger,
@@ -13,7 +17,7 @@ import type {
   TUnion,
   TIntersect,
 } from '../type/schema.js';
-import type { SchemaError } from '../error/errors.js';
+import type { ParseResult, SchemaError } from '../error/errors.js';
 import { schemaKind } from '../shared/schema-access.js';
 import { validateFormat } from '../shared/format-validators.js';
 import { Errors } from '../error/errors.js';
@@ -24,7 +28,7 @@ import { Create } from '../value/create.js';
 import { Default } from '../value/default.js';
 import { Decode as ValueDecode } from '../value/decode.js';
 import { Encode as ValueEncode } from '../value/encode.js';
-import { Parse, ParseError } from '../value/parse.js';
+import { Parse, TryParse } from '../value/parse.js';
 import { compileBunFastPath } from './bun-fast-path.js';
 
 export class Validator<T extends TSchema> {
@@ -43,7 +47,7 @@ export class Validator<T extends TSchema> {
     this.strategy = result.strategy;
   }
 
-  Check(value: unknown): boolean {
+  Check(value: unknown): value is Static<T> {
     return this.checkFn(value);
   }
 
@@ -55,32 +59,36 @@ export class Validator<T extends TSchema> {
     return this.code;
   }
 
-  Clean(value: unknown): unknown {
+  Clean(value: unknown): StaticParse<T> {
     return Clean(this.schema, value);
   }
 
-  Convert(value: unknown): unknown {
+  Convert(value: unknown): StaticParse<T> {
     return Convert(this.schema, value);
   }
 
-  Create(): unknown {
+  Create(): Static<T> {
     return Create(this.schema);
   }
 
-  Default(value: unknown): unknown {
+  Default(value: unknown): StaticParse<T> {
     return Default(this.schema, value);
   }
 
-  Decode(value: unknown): unknown {
+  Decode(value: unknown): StaticDecode<T> {
     return ValueDecode(this.schema, value);
   }
 
-  Encode(value: unknown): unknown {
+  Encode(value: unknown): StaticEncode<T> {
     return ValueEncode(this.schema, value);
   }
 
-  Parse(value: unknown): unknown {
+  Parse(value: unknown): StaticParse<T> {
     return Parse(this.schema, value);
+  }
+
+  TryParse(value: unknown): ParseResult<StaticParse<T>> {
+    return TryParse(this.schema, value);
   }
 
   IsAccelerated(): boolean {

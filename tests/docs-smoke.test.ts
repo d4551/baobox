@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import * as B from '../src/index.ts';
 import { System } from '../src/system/index.ts';
+import { Decode as ValueDecode } from '../src/value/decode.ts';
+import { Encode as ValueEncode } from '../src/value/encode.ts';
 
 afterEach(() => {
   B.FormatRegistry.Delete('doc-slug');
@@ -8,7 +10,7 @@ afterEach(() => {
   System.Locale.Reset();
 });
 
-describe('documentation smoke: choose Check vs Parse vs Compile', () => {
+describe('documentation smoke: choose Check vs TryParse vs Parse vs Compile', () => {
   it('uses Check for fast boolean validation', () => {
     const user = B.Object({
       id: B.String(),
@@ -29,13 +31,24 @@ describe('documentation smoke: choose Check vs Parse vs Compile', () => {
     })).toBe(false);
   });
 
-  it('uses Parse when the value pipeline should normalize input', () => {
+  it('uses TryParse when callers want normalized output without try/catch', () => {
     const counter = B.Object({
       count: B.Number(),
       label: B.Optional(B.String()),
     }, { required: ['count'], optional: ['label'], additionalProperties: false });
 
-    expect(B.Parse(counter, { count: '5', extra: true })).toEqual({ count: 5 });
+    expect(B.TryParse(counter, { count: '5', extra: true })).toEqual({
+      success: true,
+      value: { count: 5 },
+    });
+  });
+
+  it('keeps Parse as the throwing parity path', () => {
+    const counter = B.Object({
+      count: B.Number(),
+    }, { required: ['count'] });
+
+    expect(B.Parse(counter, { count: '5' })).toEqual({ count: 5 });
   });
 
   it('uses Compile to reuse a validator and collect localized errors', () => {
@@ -45,6 +58,10 @@ describe('documentation smoke: choose Check vs Parse vs Compile', () => {
 
     expect(validator.Check({ count: 2 })).toBe(true);
     expect(validator.Check({ count: 0 })).toBe(false);
+    expect(validator.TryParse({ count: '3' })).toEqual({
+      success: true,
+      value: { count: 3 },
+    });
     expect(validator.Errors({ count: 0 })).toEqual([
       {
         path: 'count',
@@ -88,6 +105,15 @@ describe('documentation smoke: Script, Module, and custom registries', () => {
     expect(B.Check(slug, 'Docs Ready')).toBe(false);
     expect(B.Check(positiveNumber, 3)).toBe(true);
     expect(B.Check(positiveNumber, -1)).toBe(false);
+  });
+
+  it('uses Codec for typed decode and encode transforms', () => {
+    const trimmed = B.Codec(B.String())
+      .Decode((value) => value.trim())
+      .Encode((value) => value.toUpperCase());
+
+    expect(ValueDecode(trimmed, '  Ada  ')).toBe('Ada');
+    expect(ValueEncode(trimmed, 'ada')).toBe('ADA');
   });
 });
 

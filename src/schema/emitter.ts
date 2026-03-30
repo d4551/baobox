@@ -24,22 +24,61 @@ export interface JsonSchemaOptions {
   resolveRefs?: boolean;
 }
 
+export interface JsonSchema {
+  [key: string]: unknown;
+  $comment?: string;
+  $defs?: Record<string, JsonSchema>;
+  $ref?: string;
+  additionalProperties?: boolean | JsonSchema;
+  allOf?: JsonSchema[];
+  anyOf?: JsonSchema[];
+  const?: string | number | boolean | null;
+  contains?: JsonSchema;
+  contentEncoding?: string;
+  default?: unknown;
+  description?: string;
+  else?: JsonSchema;
+  enum?: Array<string | number | boolean | null>;
+  format?: string;
+  if?: JsonSchema;
+  items?: boolean | JsonSchema;
+  maxContains?: number;
+  maxItems?: number;
+  maxLength?: number;
+  maxProperties?: number;
+  minContains?: number;
+  minItems?: number;
+  minLength?: number;
+  minProperties?: number;
+  not?: JsonSchema;
+  pattern?: string;
+  patternProperties?: Record<string, JsonSchema>;
+  prefixItems?: JsonSchema[];
+  properties?: Record<string, JsonSchema>;
+  propertyNames?: JsonSchema;
+  required?: string[];
+  then?: JsonSchema;
+  title?: string;
+  type?: string | string[];
+  uniqueItems?: boolean;
+}
+
 export interface JsonSchemaResult {
-  schema: Record<string, unknown>;
-  definitions: Record<string, Record<string, unknown>>;
+  schema: JsonSchema;
+  definitions: Record<string, JsonSchema>;
 }
 
 export function Schema(schema: TSchema, options: JsonSchemaOptions = {}): JsonSchemaResult {
   const refs = new Map<string, TSchema>();
   const emitted = toJsonSchema(schema, refs, options);
-  const definitions: Record<string, Record<string, unknown>> = {};
+  const definitions: Record<string, JsonSchema> = {};
   for (const [name, refSchema] of refs) {
     definitions[name] = toJsonSchema(refSchema, refs, options);
   }
   return { schema: emitted, definitions };
 }
 
-export function To(schema: TSchema, options: JsonSchemaOptions = {}): Record<string, unknown> {
+export function To(schema: TSchema, options: JsonSchemaOptions = {}): JsonSchema {
   return toJsonSchema(schema, new Map(), options ?? {});
 }
 
@@ -47,15 +86,15 @@ function toJsonSchema(
   schema: TSchema,
   refs: Map<string, TSchema>,
   options: JsonSchemaOptions,
-): Record<string, unknown> {
+): JsonSchema {
   const schemaRecord = schema as Record<string, unknown>;
   const kind = schemaRecord['~kind'] as string | undefined;
   const { descriptions = true, titles = true, defaults = true } = options;
 
-  const opt = (obj: Record<string, unknown>, extra: Record<string, unknown> = {}): Record<string, unknown> => {
-    const result: Record<string, unknown> = { ...obj, ...extra };
-    if (descriptions && schemaRecord['description']) result['description'] = schemaRecord['description'];
-    if (titles && schemaRecord['title']) result['title'] = schemaRecord['title'];
+  const opt = (obj: JsonSchema, extra: JsonSchema = {}): JsonSchema => {
+    const result: JsonSchema = { ...obj, ...extra };
+    if (descriptions && typeof schemaRecord['description'] === 'string') result.description = schemaRecord['description'];
+    if (titles && typeof schemaRecord['title'] === 'string') result.title = schemaRecord['title'];
     if (defaults && schemaRecord['default'] !== undefined) result['default'] = schemaRecord['default'];
     return result;
   };

@@ -19,6 +19,8 @@ import { Object as TypeObject } from './containers.js';
 import { Null, Undefined, Unknown } from './primitives.js';
 import { Clone as CloneValue } from '../value/clone.js';
 
+type TObjectLike = TObject<Record<string, TSchema>, string, string>;
+
 function hasKind(value: TSchema, kind: string): boolean {
   return (value as { '~kind'?: string })['~kind'] === kind;
 }
@@ -53,7 +55,7 @@ export function Rest<T extends TSchema>(item: T): TRest<T> {
   return { '~kind': 'Rest', type: 'rest', items: item } as TRest<T>;
 }
 
-export function Composite<TObjects extends TObject[]>(objects: [...TObjects]): TObject {
+export function Composite<TObjects extends TObjectLike[]>(objects: [...TObjects]): TObject {
   return Evaluate(Intersect(objects)) as TObject;
 }
 

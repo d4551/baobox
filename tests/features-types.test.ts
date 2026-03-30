@@ -146,8 +146,8 @@ describe('Module', () => {
     });
     expect(mod['~kind']).toBe('Module');
     const userRef = mod.Import('User');
-    expect((userRef as Record<string, unknown>)['~kind']).toBe('Ref');
-    expect((userRef as Record<string, unknown>).name).toBe('User');
+    expect(userRef['~kind']).toBe('Ref');
+    expect(userRef.name).toBe('User');
   });
 
   it('supports the standalone Import helper for direct definition lookup', () => {

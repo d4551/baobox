@@ -10,3 +10,4 @@ export * from './check.js';
 export * from './parse.js';
 export * from './errors.js';
 export * from './emitter.js';
+export type { ParseFailure, ParseResult, ParseSuccess } from '../error/errors.js';
