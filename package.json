@@ -63,7 +63,7 @@
     }
   },
   "scripts": {
-    "build": "rm -rf dist && bun build --target=bun --outdir=dist --sourcemap src/index.ts src/typebox.ts src/type/index.ts src/value/index.ts src/schema/index.ts src/error/index.ts src/compile/index.ts src/format/index.ts src/guard/index.ts src/system/index.ts src/script/index.ts src/shared/utils.ts && bunx tsc --emitDeclarationOnly --noEmit false --project tsconfig.json --outDir dist",
+    "build": "rm -rf dist && bun build --target=bun --root src --outdir=dist --sourcemap src/index.ts src/typebox.ts src/type/index.ts src/value/index.ts src/schema/index.ts src/error/index.ts src/compile/index.ts src/format/index.ts src/guard/index.ts src/system/index.ts src/script/index.ts src/shared/utils.ts && bunx tsc --emitDeclarationOnly --noEmit false --project tsconfig.json --outDir dist",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
     "bench": "bun run bench/index.ts",

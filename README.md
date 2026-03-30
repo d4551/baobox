@@ -55,6 +55,7 @@ Errors(String(), 42)
 
 - Bun resolves public package entrypoints through the `bun` export condition to raw `src/*.ts` files.
 - Standard ESM consumers resolve to built `dist/*.js` files plus generated declarations.
+- The published JS layout is `dist/index.js`, `dist/value/index.js`, and matching subpath directories, which now aligns with the export map exactly.
 - Supported public entrypoints are:
   - `baobox`
   - `baobox/type`

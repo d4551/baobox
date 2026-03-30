@@ -14,6 +14,8 @@ Baobox publishes export-condition entries in `package.json`.
 
 That means Bun consumers can work directly against the source entrypoints without a prebuild, while published ESM consumers use the generated distribution files.
 
+The build writes JavaScript to `dist/index.js`, `dist/value/index.js`, and the matching subpath directories, so the emitted files and the export map stay in sync.
+
 ## Supported Public Entrypoints
 
 These are the supported package imports:
