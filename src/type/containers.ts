@@ -5,6 +5,7 @@ import type {
   TRecord,
   TSchema,
 } from './schema.js';
+import { ExpandTupleRest, type ExpandRestItems } from './actions.js';
 
 export function Array<T extends TSchema>(
   item: T,
@@ -36,13 +37,17 @@ export function Object<
 
 export function Tuple<TItems extends TSchema[]>(
   items: TItems,
-  options?: Partial<Omit<TTuple<TItems>, "'~kind' | 'items'">>,
-): TTuple<TItems> {
+  options?: Partial<Omit<TTuple<ExpandRestItems<TItems>>, "'~kind' | 'items'">>,
+): TTuple<ExpandRestItems<TItems>> {
+  const expandedItems = ExpandTupleRest(items);
   return {
     '~kind': 'Tuple',
-    items,
+    items: expandedItems,
+    minItems: options?.minItems ?? expandedItems.length,
+    maxItems: options?.maxItems ?? expandedItems.length,
+    additionalItems: options?.additionalItems ?? false,
     ...options,
-  } as TTuple<TItems>;
+  } as TTuple<ExpandRestItems<TItems>>;
 }
 
 export function Record<TKey extends TSchema, TValue extends TSchema>(

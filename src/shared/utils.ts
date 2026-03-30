@@ -103,6 +103,54 @@ export function stringMatchesKeySchema(schema: TString, value: string): boolean 
   return true;
 }
 
+function transformStringLiteralValue(kind: string, value: string): string {
+  switch (kind) {
+    case 'Capitalize':
+      return value.length === 0 ? value : value.charAt(0).toUpperCase() + value.slice(1);
+    case 'Lowercase':
+      return value.toLowerCase();
+    case 'Uppercase':
+      return value.toUpperCase();
+    case 'Uncapitalize':
+      return value.length === 0 ? value : value.charAt(0).toLowerCase() + value.slice(1);
+    default:
+      return value;
+  }
+}
+
+/** @internal Resolve casing actions to a concrete schema when possible */
+export function resolveStringActionSchema(schema: TSchema): TSchema {
+  const value = schema as Record<string, unknown>;
+  const kind = value['~kind'];
+  if (
+    kind !== 'Capitalize'
+    && kind !== 'Lowercase'
+    && kind !== 'Uppercase'
+    && kind !== 'Uncapitalize'
+  ) {
+    return schema;
+  }
+  const item = value['item'];
+  if (typeof item !== 'object' || item === null) {
+    return schema;
+  }
+  const target = item as Record<string, unknown>;
+  const targetKind = target['~kind'];
+  if (targetKind === 'Literal' && typeof target['const'] === 'string') {
+    return {
+      '~kind': 'Literal',
+      const: transformStringLiteralValue(kind, target['const']),
+    } as TSchema;
+  }
+  if (targetKind === 'Enum' && Array.isArray(target['values']) && target['values'].every((entry) => typeof entry === 'string')) {
+    return {
+      '~kind': 'Enum',
+      values: (target['values'] as string[]).map((entry) => transformStringLiteralValue(kind, entry)),
+    } as TSchema;
+  }
+  return item as TSchema;
+}
+
 /** @internal PromiseLike structural type guard */
 export function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (typeof value === 'object' || typeof value === 'function')
@@ -216,16 +264,343 @@ export function isValidISODate(value: string): boolean {
   return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
 }
 
+function isAsciiDigit(value: string): boolean {
+  return value >= '0' && value <= '9';
+}
+
+function consumeRegexQuantifier(pattern: string, start: number): number {
+  let index = start;
+  const first = pattern[index];
+  if (first === undefined || !isAsciiDigit(first)) {
+    return -1;
+  }
+  while (index < pattern.length) {
+    const char = pattern[index];
+    if (char === undefined || !isAsciiDigit(char)) {
+      break;
+    }
+    index += 1;
+  }
+  if (pattern[index] === ',') {
+    index += 1;
+    while (index < pattern.length) {
+      const char = pattern[index];
+      if (char === undefined || !isAsciiDigit(char)) {
+        break;
+      }
+      index += 1;
+    }
+  }
+  return pattern[index] === '}' ? index : -1;
+}
+
 /** @internal Check if a string is a valid regular expression */
 export function isValidRegex(value: string): boolean {
-  // SAFETY: RegExp constructor is the only correct way to validate regex syntax
-  try { new RegExp(value); return true; } catch { return false; }
+  let escaped = false;
+  let inCharacterClass = false;
+  let groupDepth = 0;
+  let hasToken = false;
+  let groupPrefixAllowed = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === undefined) {
+      return false;
+    }
+    if (escaped) {
+      escaped = false;
+      hasToken = true;
+      groupPrefixAllowed = false;
+      continue;
+    }
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (inCharacterClass) {
+      if (char === ']') {
+        inCharacterClass = false;
+        hasToken = true;
+      }
+      continue;
+    }
+    if (groupPrefixAllowed && char === '?') {
+      groupPrefixAllowed = false;
+      continue;
+    }
+    groupPrefixAllowed = false;
+    switch (char) {
+      case '[':
+        inCharacterClass = true;
+        hasToken = true;
+        break;
+      case '(':
+        groupDepth += 1;
+        hasToken = false;
+        groupPrefixAllowed = true;
+        break;
+      case ')':
+        if (groupDepth === 0) {
+          return false;
+        }
+        groupDepth -= 1;
+        hasToken = true;
+        break;
+      case '{': {
+        if (!hasToken) {
+          return false;
+        }
+        const quantifierEnd = consumeRegexQuantifier(value, index + 1);
+        if (quantifierEnd < 0) {
+          return false;
+        }
+        index = quantifierEnd;
+        hasToken = true;
+        break;
+      }
+      case '*':
+      case '+':
+      case '?':
+        if (!hasToken) {
+          return false;
+        }
+        hasToken = true;
+        break;
+      case ']':
+      case '}':
+        return false;
+      case '|':
+        hasToken = false;
+        break;
+      default:
+        hasToken = true;
+        break;
+    }
+  }
+  return !escaped && !inCharacterClass && groupDepth === 0;
 }
 
 /** @internal Check if a string is valid JSON */
 export function isValidJson(value: string): boolean {
-  // SAFETY: JSON.parse is the only correct way to validate JSON syntax
-  try { JSON.parse(value); return true; } catch { return false; }
+  interface JsonState {
+    index: number;
+    text: string;
+  }
+
+  function skipWhitespace(state: JsonState): void {
+    while (state.index < state.text.length) {
+      const char = state.text[state.index];
+      if (char !== ' ' && char !== '\n' && char !== '\r' && char !== '\t') {
+        break;
+      }
+      state.index += 1;
+    }
+  }
+
+  function consumeLiteral(state: JsonState, literal: string): boolean {
+    if (state.text.slice(state.index, state.index + literal.length) !== literal) {
+      return false;
+    }
+    state.index += literal.length;
+    return true;
+  }
+
+  function parseString(state: JsonState): boolean {
+    if (state.text[state.index] !== '"') {
+      return false;
+    }
+    state.index += 1;
+    while (state.index < state.text.length) {
+      const char = state.text[state.index];
+      if (char === undefined) {
+        return false;
+      }
+      if (char === '"') {
+        state.index += 1;
+        return true;
+      }
+      if (char === '\\') {
+        const escape = state.text[state.index + 1];
+        if (escape === undefined) {
+          return false;
+        }
+        if (escape === 'u') {
+          for (let offset = 2; offset < 6; offset += 1) {
+            const hex = state.text[state.index + offset];
+            if (hex === undefined || !/[0-9a-fA-F]/.test(hex)) {
+              return false;
+            }
+          }
+          state.index += 6;
+          continue;
+        }
+        if (!'"\\/bfnrt'.includes(escape)) {
+          return false;
+        }
+        state.index += 2;
+        continue;
+      }
+      if (char < ' ') {
+        return false;
+      }
+      state.index += 1;
+    }
+    return false;
+  }
+
+  function parseNumber(state: JsonState): boolean {
+    const start = state.index;
+    if (state.text[state.index] === '-') {
+      state.index += 1;
+    }
+    const firstDigit = state.text[state.index];
+    if (firstDigit === undefined || !isAsciiDigit(firstDigit)) {
+      return false;
+    }
+    if (firstDigit === '0') {
+      state.index += 1;
+    } else {
+      while (state.index < state.text.length) {
+        const digit = state.text[state.index];
+        if (digit === undefined || !isAsciiDigit(digit)) {
+          break;
+        }
+        state.index += 1;
+      }
+    }
+    if (state.text[state.index] === '.') {
+      state.index += 1;
+      const fractionDigit = state.text[state.index];
+      if (fractionDigit === undefined || !isAsciiDigit(fractionDigit)) {
+        return false;
+      }
+      while (state.index < state.text.length) {
+        const digit = state.text[state.index];
+        if (digit === undefined || !isAsciiDigit(digit)) {
+          break;
+        }
+        state.index += 1;
+      }
+    }
+    const exponent = state.text[state.index];
+    if (exponent === 'e' || exponent === 'E') {
+      state.index += 1;
+      const sign = state.text[state.index];
+      if (sign === '+' || sign === '-') {
+        state.index += 1;
+      }
+      const exponentDigit = state.text[state.index];
+      if (exponentDigit === undefined || !isAsciiDigit(exponentDigit)) {
+        return false;
+      }
+      while (state.index < state.text.length) {
+        const digit = state.text[state.index];
+        if (digit === undefined || !isAsciiDigit(digit)) {
+          break;
+        }
+        state.index += 1;
+      }
+    }
+    return state.index > start;
+  }
+
+  function parseArray(state: JsonState): boolean {
+    if (state.text[state.index] !== '[') {
+      return false;
+    }
+    state.index += 1;
+    skipWhitespace(state);
+    if (state.text[state.index] === ']') {
+      state.index += 1;
+      return true;
+    }
+    while (state.index < state.text.length) {
+      if (!parseValue(state)) {
+        return false;
+      }
+      skipWhitespace(state);
+      const separator = state.text[state.index];
+      if (separator === ',') {
+        state.index += 1;
+        skipWhitespace(state);
+        continue;
+      }
+      if (separator === ']') {
+        state.index += 1;
+        return true;
+      }
+      return false;
+    }
+    return false;
+  }
+
+  function parseObject(state: JsonState): boolean {
+    if (state.text[state.index] !== '{') {
+      return false;
+    }
+    state.index += 1;
+    skipWhitespace(state);
+    if (state.text[state.index] === '}') {
+      state.index += 1;
+      return true;
+    }
+    while (state.index < state.text.length) {
+      if (!parseString(state)) {
+        return false;
+      }
+      skipWhitespace(state);
+      if (state.text[state.index] !== ':') {
+        return false;
+      }
+      state.index += 1;
+      if (!parseValue(state)) {
+        return false;
+      }
+      skipWhitespace(state);
+      const separator = state.text[state.index];
+      if (separator === ',') {
+        state.index += 1;
+        skipWhitespace(state);
+        continue;
+      }
+      if (separator === '}') {
+        state.index += 1;
+        return true;
+      }
+      return false;
+    }
+    return false;
+  }
+
+  function parseValue(state: JsonState): boolean {
+    skipWhitespace(state);
+    const char = state.text[state.index];
+    switch (char) {
+      case '"':
+        return parseString(state);
+      case '{':
+        return parseObject(state);
+      case '[':
+        return parseArray(state);
+      case 't':
+        return consumeLiteral(state, 'true');
+      case 'f':
+        return consumeLiteral(state, 'false');
+      case 'n':
+        return consumeLiteral(state, 'null');
+      default:
+        return char === '-' || (char !== undefined && isAsciiDigit(char))
+          ? parseNumber(state)
+          : false;
+    }
+  }
+
+  const state: JsonState = { index: 0, text: value };
+  if (!parseValue(state)) {
+    return false;
+  }
+  skipWhitespace(state);
+  return state.index === state.text.length;
 }
 
 export const EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;

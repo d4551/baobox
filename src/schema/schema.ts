@@ -37,6 +37,7 @@ import {
   deriveObjectSchema,
   deriveIndexSchemasForEmission,
   KNOWN_FORMATS,
+  resolveStringActionSchema,
 } from '../shared/utils.js';
 
 /** Options for JSON Schema emission */
@@ -92,9 +93,9 @@ function toJsonSchema(
 
   switch (kind) {
     case 'String':
-      return opt(stringSchema(s as TString));
+      return opt(stringSchema(schema as TString));
     case 'Uint8Array': {
-      const u8 = s as TUint8Array;
+      const u8 = schema as TUint8Array;
       return opt({
         type: 'string',
         contentEncoding: 'base64',
@@ -106,9 +107,9 @@ function toJsonSchema(
     case 'RegExpInstance':
       return opt({ type: 'object', $comment: 'RegExpInstance validates actual RegExp objects; no JSON Schema equivalent.' });
     case 'Number':
-      return opt(numberSchema(s as TNumber));
+      return opt(numberSchema(schema as TNumber));
     case 'Integer':
-      return opt(integerSchema(s as TInteger));
+      return opt(integerSchema(schema as TInteger));
     case 'Boolean':
       return opt({ type: 'boolean' });
     case 'Null':
@@ -118,7 +119,7 @@ function toJsonSchema(
     case 'Date':
       return opt({ type: 'string', format: 'date-time', $comment: 'Date runtime instance; validated as native Date at runtime.' });
     case 'Literal':
-      return opt({ const: (s as TLiteral<string | number | boolean>)['const'] });
+      return opt({ const: (schema as TLiteral<string | number | boolean>)['const'] });
     case 'Void':
       return opt({ type: 'null', description: 'void (undefined or null)' });
     case 'Undefined':
@@ -130,7 +131,7 @@ function toJsonSchema(
     case 'Never':
       return opt({ not: {} });
     case 'Array': {
-      const a = s as TArray;
+      const a = schema as TArray;
       return opt({
         type: 'array',
         items: toJsonSchema(a.items, refs, options),
@@ -143,7 +144,7 @@ function toJsonSchema(
       });
     }
     case 'Object': {
-      const o = s as TObject;
+      const o = schema as TObject;
       const properties: Record<string, Record<string, unknown>> = {};
       const required: string[] = [];
       const optional = new Set((o.optional ?? []).map(String));
@@ -179,7 +180,7 @@ function toJsonSchema(
       });
     }
     case 'Tuple': {
-      const t = s as TTuple;
+      const t = schema as TTuple;
       return opt({
         type: 'array',
         prefixItems: t.items.map(item => toJsonSchema(item, refs, options)),
@@ -189,7 +190,7 @@ function toJsonSchema(
       });
     }
     case 'Record': {
-      const r = s as TRecord;
+      const r = schema as TRecord;
       return opt({
         type: 'object',
         propertyNames: toJsonSchema(r.key, refs, options),
@@ -199,78 +200,78 @@ function toJsonSchema(
       });
     }
     case 'Union': {
-      const u = s as TUnion;
+      const u = schema as TUnion;
       return opt({ anyOf: u.variants.map(v => toJsonSchema(v, refs, options)) });
     }
     case 'Intersect': {
-      const i = s as TIntersect;
+      const i = schema as TIntersect;
       return opt({ allOf: i.variants.map(v => toJsonSchema(v, refs, options)) });
     }
     case 'Optional': {
-      const o2 = s as TOptional<TSchema>;
+      const o2 = schema as TOptional<TSchema>;
       return {
         ...toJsonSchema(o2.item, refs, options),
         $comment: 'Optional wrapper accepts undefined at runtime; JSON Schema represents the defined-value branch only.',
       };
     }
     case 'Readonly': {
-      const r2 = s as TReadonly<TSchema>;
+      const r2 = schema as TReadonly<TSchema>;
       return toJsonSchema(r2.item, refs, options);
     }
     case 'Enum': {
-      const e = s as TEnum;
+      const e = schema as TEnum;
       return opt({ type: 'string', enum: e.values });
     }
     case 'Recursive': {
-      const r3 = s as TRecursive<TSchema>;
+      const r3 = schema as TRecursive<TSchema>;
       refs.set(r3.name, r3.schema);
       return { $ref: `#/definitions/${r3.name}` };
     }
     case 'Ref': {
-      const r4 = s as TRef;
+      const r4 = schema as TRef;
       return refs.has(r4.name)
         ? { $ref: `#/definitions/${r4.name}` }
         : opt({ not: {}, $comment: `Unresolved ref: ${r4.name}` });
     }
     case 'Exclude': {
-      const ex = s as TExclude<TSchema, TSchema>;
+      const ex = schema as TExclude<TSchema, TSchema>;
       return opt({ allOf: [toJsonSchema(ex.left, refs, options), { not: toJsonSchema(ex.right, refs, options) }] });
     }
     case 'Extract': {
-      const ex = s as TExtract<TSchema, TSchema>;
+      const ex = schema as TExtract<TSchema, TSchema>;
       return opt({ allOf: [toJsonSchema(ex.left, refs, options), toJsonSchema(ex.right, refs, options)] });
     }
     case 'Partial': {
-      const p = s as TPartial<TObject>;
+      const p = schema as TPartial<TObject>;
       const derived = deriveObjectSchema(p.object as TObject, { requiredMode: 'none' }) as TObject;
       return opt(objectLikeSchema(derived, refs, options));
     }
     case 'Required': {
-      const r4 = s as TRequired<TObject>;
+      const r4 = schema as TRequired<TObject>;
       const derived = deriveObjectSchema(r4.object as TObject, { requiredMode: 'all' }) as TObject;
       return opt(objectLikeSchema(derived, refs, options));
     }
     case 'Pick': {
-      const p2 = s as TPick<TObject, keyof TObject['properties']>;
+      const p2 = schema as TPick<TObject, keyof TObject['properties']>;
       const derived = deriveObjectSchema(p2.object as TObject, { pickKeys: p2.keys.map(String), additionalProperties: false }) as TObject;
       return opt(objectLikeSchema(derived, refs, options));
     }
     case 'Omit': {
-      const o3 = s as TOmit<TObject, keyof TObject['properties']>;
+      const o3 = schema as TOmit<TObject, keyof TObject['properties']>;
       const derived = deriveObjectSchema(o3.object as TObject, { omitKeys: o3.keys.map(String), additionalProperties: false }) as TObject;
       return opt(objectLikeSchema(derived, refs, options));
     }
     case 'KeyOf': {
-      const k = s as TKeyOf<TObject>;
+      const k = schema as TKeyOf<TObject>;
       const values = Object.keys((k.object as TObject).properties as Record<string, TSchema>);
       return opt({ type: 'string', enum: values });
     }
     case 'Not': {
-      const n = s as TNot<TSchema>;
+      const n = schema as TNot<TSchema>;
       return opt({ not: toJsonSchema(n.schema, refs, options) });
     }
     case 'IfThenElse': {
-      const ite = s as TIfThenElse<TSchema, TSchema, TSchema>;
+      const ite = schema as TIfThenElse<TSchema, TSchema, TSchema>;
       return opt({
         if: toJsonSchema(ite.if, refs, options),
         then: toJsonSchema(ite.then, refs, options),
@@ -278,7 +279,7 @@ function toJsonSchema(
       });
     }
     case 'Conditional': {
-      const c = s as TConditional<TSchema, TSchema[]>;
+      const c = schema as TConditional<TSchema, TSchema[]>;
       const ifSchema = toJsonSchema(c.check, refs, options);
       const thenSchema = c.union.length > 0
         ? { anyOf: c.union.map((entry) => toJsonSchema(entry, refs, options)) }
@@ -292,23 +293,41 @@ function toJsonSchema(
       if (titles && s['title']) result['title'] = s['title'];
       return result;
     }
+    case 'Rest': {
+      const rest = schema as { items: TSchema };
+      return opt({
+        type: 'array',
+        items: toJsonSchema(rest.items, refs, options),
+      });
+    }
+    case 'Capitalize':
+    case 'Lowercase':
+    case 'Uppercase':
+    case 'Uncapitalize':
+      return toJsonSchema(resolveStringActionSchema(schema), refs, options);
+    case 'Identifier':
+      return opt({ type: 'string', pattern: '^[$A-Z_a-z][$\\\\w]*$' });
+    case 'Parameter':
+      return toJsonSchema((schema as TSchema & { equals: TSchema }).equals, refs, options);
+    case 'This':
+      return { $ref: '#' };
     case 'TemplateLiteral': {
-      const tl = s as TTemplateLiteral;
+      const tl = schema as TTemplateLiteral;
       return opt({ type: 'string', pattern: tl.patterns.join('|') });
     }
     case 'Unsafe': {
-      const u2 = s as TUnsafe;
+      const u2 = schema as TUnsafe;
       return { ...u2.schema };
     }
     case 'Index': {
-      const i2 = s as TIndex<TObject, TSchema>;
+      const i2 = schema as TIndex<TObject, TSchema>;
       const candidates = deriveIndexSchemasForEmission(i2.object as TObject, i2.key);
       if (candidates.length === 0) return opt({ not: {} });
       if (candidates.length === 1 && candidates[0]) return toJsonSchema(candidates[0], refs, options);
       return opt({ anyOf: candidates.map((candidate) => toJsonSchema(candidate, refs, options)) });
     }
     case 'Mapped': {
-      const m = s as TMapped<TObject>;
+      const m = schema as TMapped<TObject>;
       return opt(objectLikeSchema(m.object as TObject, refs, options));
     }
     case 'Decode':

@@ -10,6 +10,7 @@ import {
   checkStringConstraints,
   checkNumberConstraints,
   validateFormat,
+  resolveStringActionSchema,
   TypeRegistry,
   TypeSystemPolicy,
 } from '../shared/utils.js';
@@ -184,6 +185,7 @@ export function CheckInternal(schema: TSchema, value: unknown, refs: Map<string,
       const s = schema as TSchema & { name: string; schema: TSchema };
       const nextRefs = new Map(refs);
       nextRefs.set(s.name, s.schema);
+      nextRefs.set('#', s.schema);
       return CheckInternal(s.schema, value, nextRefs);
     }
     case 'Exclude': {
@@ -248,6 +250,25 @@ export function CheckInternal(schema: TSchema, value: unknown, refs: Map<string,
       }
       return s.default !== undefined ? CheckInternal(s.default, value, refs) : true;
     }
+    case 'Rest': {
+      const s = schema as TSchema & { items: TSchema };
+      return Array.isArray(value) && value.every((item) => CheckInternal(s.items, item, refs));
+    }
+    case 'Capitalize':
+    case 'Lowercase':
+    case 'Uppercase':
+    case 'Uncapitalize':
+      return CheckInternal(resolveStringActionSchema(schema), value, refs);
+    case 'Identifier':
+      return typeof value === 'string' && /^[$A-Z_a-z][$\w]*$/.test(value);
+    case 'Parameter': {
+      const s = schema as TSchema & { equals: TSchema };
+      return CheckInternal(s.equals, value, refs);
+    }
+    case 'This': {
+      const target = refs.get('#');
+      return target ? CheckInternal(target, value, refs) : false;
+    }
     case 'TemplateLiteral': {
       const s = schema as TSchema & { patterns: string[] };
       if (typeof value !== 'string') return false;
@@ -281,6 +302,7 @@ export function CheckInternal(schema: TSchema, value: unknown, refs: Map<string,
     case 'Parameters': {
       const s = schema as TSchema & { function: TSchema & { parameters: TSchema[] } };
       if (!Array.isArray(value)) return false;
+      if (value.length !== s.function.parameters.length) return false;
       return value.every((item, i) => {
         const paramSchema = s.function.parameters[i];
         return paramSchema ? CheckInternal(paramSchema, item, refs) : false;
@@ -293,6 +315,7 @@ export function CheckInternal(schema: TSchema, value: unknown, refs: Map<string,
     case 'ConstructorParameters': {
       const s = schema as TSchema & { constructor: TSchema & { parameters: TSchema[] } };
       if (!Array.isArray(value)) return false;
+      if (value.length !== s.constructor.parameters.length) return false;
       return value.every((item, i) => {
         const paramSchema = s.constructor.parameters[i];
         return paramSchema ? CheckInternal(paramSchema, item, refs) : false;

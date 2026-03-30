@@ -433,6 +433,81 @@ describe('ConstructorParameters', () => {
   });
 });
 
+describe('Rest', () => {
+  it('validates as an array schema when used directly', () => {
+    const schema = B.Rest(B.String());
+    expect(B.Check(schema, ['a', 'b'])).toBe(true);
+    expect(B.Check(schema, ['a', 1])).toBe(false);
+  });
+
+  it('expands tuple rest items during tuple construction', () => {
+    const schema = B.Tuple([
+      B.Literal(1),
+      B.Rest(B.Tuple([B.Literal(2), B.Literal(3)])),
+    ]);
+    expect(B.Check(schema, [1, 2, 3])).toBe(true);
+    expect(B.Check(schema, [1, 2])).toBe(false);
+  });
+
+  it('expands function parameter rest items', () => {
+    const fn = B.Function([
+      B.Literal(1),
+      B.Rest(B.Tuple([B.Literal(2), B.Literal(3)])),
+    ], B.Void());
+    const schema = B.Parameters(fn);
+    expect(B.Check(schema, [1, 2, 3])).toBe(true);
+    expect(B.Check(schema, [1, 2])).toBe(false);
+  });
+});
+
+describe('Composite', () => {
+  it('merges object properties into a single object schema', () => {
+    const schema = B.Composite([
+      B.Object({ a: B.String() }, { required: ['a'] }),
+      B.Object({ b: B.Number() }, { required: ['b'] }),
+    ]);
+    expect(B.Check(schema, { a: 'x', b: 1 })).toBe(true);
+    expect(B.Check(schema, { a: 'x' })).toBe(false);
+  });
+});
+
+describe('String casing actions', () => {
+  it('transforms string literals at runtime', () => {
+    expect(B.Check(B.Capitalize(B.Literal('hello')), 'Hello')).toBe(true);
+    expect(B.Check(B.Lowercase(B.Literal('HELLO')), 'hello')).toBe(true);
+    expect(B.Check(B.Uppercase(B.Literal('hello')), 'HELLO')).toBe(true);
+    expect(B.Check(B.Uncapitalize(B.Literal('HELLO')), 'hELLO')).toBe(true);
+  });
+
+  it('transforms enum values for validation and emission', () => {
+    const schema = B.Uppercase(B.Enum(['a', 'b']));
+    expect(B.Check(schema, 'A')).toBe(true);
+    expect(B.Check(schema, 'a')).toBe(false);
+    const json = To(schema);
+    expect(json.enum).toEqual(['A', 'B']);
+  });
+});
+
+describe('Schema.Clone', () => {
+  it('deep clones schemas without mutating the original', () => {
+    const original = B.Object({ name: B.String() });
+    const clone = B.Clone(original);
+    expect(clone).toEqual(original);
+    expect(clone).not.toBe(original);
+    expect(clone.properties).not.toBe(original.properties);
+  });
+});
+
+describe('Type root schema guards', () => {
+  it('exposes kind guards on the Type namespace', () => {
+    expect(B.Type.IsString(B.String())).toBe(true);
+    expect(B.Type.IsTuple(B.Tuple([B.String()]))).toBe(true);
+    expect(B.Type.IsRest(B.Rest(B.String()))).toBe(true);
+    expect(B.Type.IsCapitalize(B.Capitalize(B.Literal('hello')))).toBe(true);
+    expect(B.Type.IsSchema(B.Number())).toBe(true);
+  });
+});
+
 // -------------------------------------------------------------------------
 // Phase 8: Module
 // -------------------------------------------------------------------------
@@ -446,6 +521,14 @@ describe('Module', () => {
     const userRef = mod.Import('User');
     expect((userRef as Record<string, unknown>)['~kind']).toBe('Ref');
     expect((userRef as Record<string, unknown>).name).toBe('User');
+  });
+
+  it('supports the standalone Import helper for direct definition lookup', () => {
+    const mod = B.Module({
+      User: B.Object({ name: B.String() }),
+    });
+    const user = B.Import(mod, 'User');
+    expect(B.Check(user, { name: 'Alice' })).toBe(true);
   });
 });
 

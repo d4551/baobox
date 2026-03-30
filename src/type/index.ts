@@ -39,6 +39,11 @@ export type {
   TIndex,
   TMapped,
   TConditional,
+  TRest,
+  TCapitalize,
+  TLowercase,
+  TUppercase,
+  TUncapitalize,
   TFunction,
   TConstructor,
   TPromise,
@@ -61,6 +66,15 @@ export type {
 } from './schema.js';
 
 export type { Static as StaticType } from './schema.js';
+export type {
+  TInterface,
+  TNonNullable,
+  TOptions,
+  TReadonlyType,
+  TIdentifier,
+  TParameter,
+  TThis,
+} from './actions.js';
 
 export {
   String,
@@ -136,5 +150,25 @@ export {
   ConstructorParameters,
   Module,
 } from './combinators.js';
+
+export {
+  Rest,
+  Composite,
+  Clone,
+  Capitalize,
+  Lowercase,
+  Uppercase,
+  Uncapitalize,
+  Interface,
+  NonNullable,
+  Options,
+  ReadonlyType,
+  Identifier,
+  Parameter,
+  This,
+  Import,
+} from './actions.js';
+
+export * from './guards.js';
 
 export * from './kind.js';

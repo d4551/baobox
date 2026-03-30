@@ -191,7 +191,8 @@ export function Every<TValue>(
   callback: (value: TValue, index: number) => boolean,
 ): boolean {
   for (let index = offset; index < value.length; index += 1) {
-    if (!callback(value[index], index)) {
+    const current = value[index] as TValue;
+    if (!callback(current, index)) {
       return false;
     }
   }
@@ -205,7 +206,8 @@ export function EveryAll<TValue>(
 ): boolean {
   let result = true;
   for (let index = offset; index < value.length; index += 1) {
-    if (!callback(value[index], index)) {
+    const current = value[index] as TValue;
+    if (!callback(current, index)) {
       result = false;
     }
   }

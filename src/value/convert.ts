@@ -1,5 +1,24 @@
 import type { TSchema } from '../type/schema.js';
 
+function isBigIntText(value: string): boolean {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return false;
+  }
+  const first = normalized[0];
+  const start = first === '+' || first === '-' ? 1 : 0;
+  if (start === normalized.length) {
+    return false;
+  }
+  for (let index = start; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    if (char === undefined || char < '0' || char > '9') {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Coerce compatible types to match a schema */
 export function Convert(schema: TSchema, value: unknown): unknown {
   return ConvertInternal(schema, value, new Map());
@@ -49,8 +68,10 @@ function ConvertInternal(schema: TSchema, value: unknown, refs: Map<string, TSch
       if (typeof value === 'bigint') return value;
       if (typeof value === 'number' && Number.isInteger(value)) return globalThis.BigInt(value);
       if (typeof value === 'string') {
-        // SAFETY: BigInt constructor can throw for non-numeric strings; this is intentional coercion
-        try { return globalThis.BigInt(value); } catch { return value; }
+        const normalized = value.trim();
+        if (isBigIntText(normalized)) {
+          return globalThis.BigInt(normalized);
+        }
       }
       return value;
     }

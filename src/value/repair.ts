@@ -8,7 +8,16 @@ import { Clone } from './clone.js';
 export function Repair<T extends TSchema>(schema: T, value: unknown): unknown {
   let result = Clone(value);
   const converted = Convert(schema, result);
-  if (Check(schema, converted)) return converted;
+  const kind = (schema as { '~kind'?: string })['~kind'];
+  if (
+    Check(schema, converted)
+    && kind !== 'Object'
+    && kind !== 'Tuple'
+    && kind !== 'Array'
+    && kind !== 'Record'
+  ) {
+    return converted;
+  }
   result = converted;
   return RepairInternal(schema, result, new Map());
 }
@@ -39,7 +48,7 @@ function RepairInternal(schema: TSchema, value: unknown, refs: Map<string, TSche
           } else {
             result[key] = RepairInternal(propSchema, propValue, refs);
           }
-        } else if (required.includes(key)) {
+        } else if (!optional.has(key) || required.includes(key)) {
           result[key] = Create(propSchema);
         }
       }

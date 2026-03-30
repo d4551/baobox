@@ -25,6 +25,7 @@ import type {
   TDecode,
   TEncode,
 } from './schema.js';
+import { ExpandTupleRest, type ExpandRestItems } from './actions.js';
 
 /** Create a string schema */
 export function String(options?: Partial<Omit<TString, "'~kind'">>): TString {
@@ -193,21 +194,35 @@ export function TemplateLiteral(
 }
 
 /** Create a function schema */
-export function Function(
-  parameters: TFunction['parameters'] = [],
-  returns: TFunction['returns'] = Any(),
-  options?: Partial<Omit<TFunction, "'~kind' | 'parameters' | 'returns'">>,
-): TFunction {
-  return { '~kind': 'Function', parameters, returns, ...options } as TFunction;
+export function Function<TParameters extends TSchema[] = TSchema[], TReturns extends TSchema = TAny>(
+  parameters?: TParameters,
+  returns?: TReturns,
+  options?: Partial<Omit<TFunction<ExpandRestItems<TParameters>, TReturns>, "'~kind' | 'parameters' | 'returns'">>,
+): TFunction<ExpandRestItems<TParameters>, TReturns> {
+  const resolvedParameters = ExpandTupleRest((parameters ?? []) as TParameters);
+  const resolvedReturns = (returns ?? Any()) as TReturns;
+  return {
+    '~kind': 'Function',
+    parameters: resolvedParameters,
+    returns: resolvedReturns,
+    ...options,
+  } as TFunction<ExpandRestItems<TParameters>, TReturns>;
 }
 
 /** Create a constructor schema */
-export function Constructor(
-  parameters: TConstructor['parameters'] = [],
-  returns: TConstructor['returns'] = Any(),
-  options?: Partial<Omit<TConstructor, "'~kind' | 'parameters' | 'returns'">>,
-): TConstructor {
-  return { '~kind': 'Constructor', parameters, returns, ...options } as TConstructor;
+export function Constructor<TParameters extends TSchema[] = TSchema[], TReturns extends TSchema = TAny>(
+  parameters?: TParameters,
+  returns?: TReturns,
+  options?: Partial<Omit<TConstructor<ExpandRestItems<TParameters>, TReturns>, "'~kind' | 'parameters' | 'returns'">>,
+): TConstructor<ExpandRestItems<TParameters>, TReturns> {
+  const resolvedParameters = ExpandTupleRest((parameters ?? []) as TParameters);
+  const resolvedReturns = (returns ?? Any()) as TReturns;
+  return {
+    '~kind': 'Constructor',
+    parameters: resolvedParameters,
+    returns: resolvedReturns,
+    ...options,
+  } as TConstructor<ExpandRestItems<TParameters>, TReturns>;
 }
 
 /** Create a Promise schema */

@@ -7,6 +7,7 @@ import {
   isPromiseLike,
   isIteratorLike,
   isAsyncIteratorLike,
+  resolveStringActionSchema,
   TypeRegistry,
 } from '../shared/utils.js';
 
@@ -162,7 +163,7 @@ function ValidateErrors(schema: TSchema, value: unknown, path: string[], refs: M
     case 'Optional': { const s = schema as TSchema & { item: TSchema }; if (value !== undefined) errors.push(...ValidateErrors(s.item, value, path, refs)); break; }
     case 'Readonly': { const s = schema as TSchema & { item: TSchema }; errors.push(...ValidateErrors(s.item, value, path, refs)); break; }
     case 'Enum': { const s = schema as TSchema & { values: string[] }; if (typeof value !== 'string') { errors.push({ path: p, message: `Expected string, got ${typeof value}`, code: 'INVALID_TYPE' }); break; } if (!s.values.includes(value)) errors.push({ path: p, message: `Value must be one of: ${s.values.join(', ')}`, code: 'ENUM' }); break; }
-    case 'Recursive': { const s = schema as TSchema & { name: string; schema: TSchema }; const nr = new Map(refs); nr.set(s.name, s.schema); errors.push(...ValidateErrors(s.schema, value, path, nr)); break; }
+    case 'Recursive': { const s = schema as TSchema & { name: string; schema: TSchema }; const nr = new Map(refs); nr.set(s.name, s.schema); nr.set('#', s.schema); errors.push(...ValidateErrors(s.schema, value, path, nr)); break; }
     case 'Ref': { const s = schema as TSchema & { name: string }; const t = refs.get(s.name); if (t) errors.push(...ValidateErrors(t, value, path, refs)); else errors.push({ path: p, message: 'Unresolved schema reference', code: 'UNRESOLVED_REF' }); break; }
     case 'Exclude': { const s = schema as TSchema & { left: TSchema; right: TSchema }; if (!CheckInternal(s.left, value, refs)) errors.push(...ValidateErrors(s.left, value, path, refs)); else if (CheckInternal(s.right, value, refs)) errors.push({ path: p, message: 'Value matched an excluded schema', code: 'EXCLUDE' }); break; }
     case 'Extract': { const s = schema as TSchema & { left: TSchema; right: TSchema }; if (!CheckInternal(s.left, value, refs)) errors.push(...ValidateErrors(s.left, value, path, refs)); else if (!CheckInternal(s.right, value, refs)) errors.push({ path: p, message: 'Value did not match the extracted schema', code: 'EXTRACT' }); break; }
@@ -181,6 +182,14 @@ function ValidateErrors(schema: TSchema, value: unknown, path: string[], refs: M
     case 'Conditional': { const s = schema as TSchema & { check: TSchema; union: TSchema[]; default?: TSchema }; if (CheckInternal(s.check, value, refs)) { const ue = s.union.map((c) => ValidateErrors(c, value, path, refs)); if (!ue.some((e) => e.length === 0)) errors.push({ path: p, message: 'Value does not match any conditional branch', code: 'CONDITIONAL' }); } else if (s.default !== undefined) errors.push(...ValidateErrors(s.default, value, path, refs)); break; }
     case 'Index': { const s = schema as TSchema & { object: TObject; key: TSchema }; const cs = deriveIndexSchemas(s.object, s.key, (sch, val) => CheckInternal(sch, val, new Map())); if (cs.length === 0) { errors.push({ path: p, message: 'Index resolved to no candidate schemas', code: 'INDEX' }); break; } const ce = cs.map((c) => ValidateErrors(c, value, path, refs)); if (!ce.some((e) => e.length === 0)) errors.push({ path: p, message: 'Value does not match any indexed schema', code: 'INDEX' }); break; }
     case 'Mapped': { const s = schema as TSchema & { object: TObject }; errors.push(...ValidateErrors(s.object, value, path, refs)); break; }
+    case 'Rest': { const s = schema as TSchema & { items: TSchema }; if (!Array.isArray(value)) { errors.push({ path: p, message: 'Expected array', code: 'INVALID_TYPE' }); break; } value.forEach((item, index) => { errors.push(...ValidateErrors(s.items, item, [...path, String(index)], refs)); }); break; }
+    case 'Capitalize':
+    case 'Lowercase':
+    case 'Uppercase':
+    case 'Uncapitalize': { errors.push(...ValidateErrors(resolveStringActionSchema(schema), value, path, refs)); break; }
+    case 'Identifier': { if (typeof value !== 'string') errors.push({ path: p, message: `Expected string, got ${typeof value}`, code: 'INVALID_TYPE' }); else if (!/^[$A-Z_a-z][$\w]*$/.test(value)) errors.push({ path: p, message: 'Expected valid identifier string', code: 'IDENTIFIER' }); break; }
+    case 'Parameter': { const s = schema as TSchema & { equals: TSchema }; errors.push(...ValidateErrors(s.equals, value, path, refs)); break; }
+    case 'This': { const target = refs.get('#'); if (target) errors.push(...ValidateErrors(target, value, path, refs)); else errors.push({ path: p, message: 'Unresolved self reference', code: 'UNRESOLVED_REF' }); break; }
     case 'Promise': { if (!isPromiseLike(value)) errors.push({ path: p, message: 'Expected Promise-like value', code: 'INVALID_TYPE' }); break; }
     case 'Iterator': { if (!isIteratorLike(value)) errors.push({ path: p, message: 'Expected iterator value', code: 'INVALID_TYPE' }); break; }
     case 'AsyncIterator': { if (!isAsyncIteratorLike(value)) errors.push({ path: p, message: 'Expected async iterator value', code: 'INVALID_TYPE' }); break; }
@@ -191,9 +200,9 @@ function ValidateErrors(schema: TSchema, value: unknown, path: string[], refs: M
     case 'Encode': { errors.push(...ValidateErrors((schema as Record<string, unknown>)['inner'] as TSchema, value, path, refs)); break; }
     case 'Awaited': { const s = schema as TSchema & { promise: TSchema & { item: TSchema } }; errors.push(...ValidateErrors(s.promise.item, value, path, refs)); break; }
     case 'ReturnType': { const s = schema as TSchema & { function: TSchema & { returns: TSchema } }; errors.push(...ValidateErrors(s.function.returns, value, path, refs)); break; }
-    case 'Parameters': { const s = schema as TSchema & { function: TSchema & { parameters: TSchema[] } }; if (!Array.isArray(value)) { errors.push({ path: p, message: 'Expected array', code: 'INVALID_TYPE' }); break; } value.forEach((item, i) => { if (s.function.parameters[i]) errors.push(...ValidateErrors(s.function.parameters[i], item, [...path, String(i)], refs)); }); break; }
+    case 'Parameters': { const s = schema as TSchema & { function: TSchema & { parameters: TSchema[] } }; if (!Array.isArray(value)) { errors.push({ path: p, message: 'Expected array', code: 'INVALID_TYPE' }); break; } if (value.length !== s.function.parameters.length) errors.push({ path: p, message: `Expected ${s.function.parameters.length} parameters`, code: 'PARAMETERS_LENGTH' }); value.forEach((item, i) => { if (s.function.parameters[i]) errors.push(...ValidateErrors(s.function.parameters[i], item, [...path, String(i)], refs)); }); break; }
     case 'InstanceType': { const s = schema as TSchema & { constructor: TSchema & { returns: TSchema } }; errors.push(...ValidateErrors(s.constructor.returns, value, path, refs)); break; }
-    case 'ConstructorParameters': { const s = schema as TSchema & { constructor: TSchema & { parameters: TSchema[] } }; if (!Array.isArray(value)) { errors.push({ path: p, message: 'Expected array', code: 'INVALID_TYPE' }); break; } value.forEach((item, i) => { if (s.constructor.parameters[i]) errors.push(...ValidateErrors(s.constructor.parameters[i], item, [...path, String(i)], refs)); }); break; }
+    case 'ConstructorParameters': { const s = schema as TSchema & { constructor: TSchema & { parameters: TSchema[] } }; if (!Array.isArray(value)) { errors.push({ path: p, message: 'Expected array', code: 'INVALID_TYPE' }); break; } if (value.length !== s.constructor.parameters.length) errors.push({ path: p, message: `Expected ${s.constructor.parameters.length} parameters`, code: 'PARAMETERS_LENGTH' }); value.forEach((item, i) => { if (s.constructor.parameters[i]) errors.push(...ValidateErrors(s.constructor.parameters[i], item, [...path, String(i)], refs)); }); break; }
     default: {
       const customValidator = TypeRegistry.Get(kind ?? '');
       if (customValidator && !customValidator(schema, value)) errors.push({ path: p, message: `Custom type validation failed for kind "${kind}"`, code: 'CUSTOM_TYPE' });

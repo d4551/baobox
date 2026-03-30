@@ -1,8 +1,9 @@
+import { Code, Compile, Validator } from '../compile/index.js';
 import { Schema, To } from './schema.js';
 
-export { Schema, To };
+export { Code, Compile, Schema, To, Validator };
 export type { JsonSchemaOptions, JsonSchemaResult } from './schema.js';
 
-const SchemaModule = { Schema, To };
+const SchemaModule = { Code, Compile, Schema, To, Validator };
 
 export default SchemaModule;

@@ -302,6 +302,32 @@ export interface TConditional<
   default?: TDefault;
 }
 
+export interface TRest<T extends TSchema = TSchema> extends TSchema {
+  '~kind': 'Rest';
+  type: 'rest';
+  items: T;
+}
+
+export interface TCapitalize<T extends TSchema = TString> extends TSchema {
+  '~kind': 'Capitalize';
+  item: T;
+}
+
+export interface TLowercase<T extends TSchema = TString> extends TSchema {
+  '~kind': 'Lowercase';
+  item: T;
+}
+
+export interface TUppercase<T extends TSchema = TString> extends TSchema {
+  '~kind': 'Uppercase';
+  item: T;
+}
+
+export interface TUncapitalize<T extends TSchema = TString> extends TSchema {
+  '~kind': 'Uncapitalize';
+  item: T;
+}
+
 export interface TPromise<T extends TSchema = TSchema> extends TSchema {
   '~kind': 'Promise';
   item: T;
@@ -406,6 +432,17 @@ export type UnionToIntersection<T> = (
   ? I
   : never;
 
+type ExpandTupleRest<TItems extends TSchema[]> = TItems extends [
+  infer Head extends TSchema,
+  ...infer Tail extends TSchema[],
+]
+  ? Head extends TRest<infer Item extends TSchema>
+    ? Item extends TTuple<infer RestItems>
+      ? [...ExpandTupleRest<RestItems>, ...ExpandTupleRest<Tail>]
+      : [Head, ...ExpandTupleRest<Tail>]
+    : [Head, ...ExpandTupleRest<Tail>]
+  : [];
+
 export type Static<T extends TSchema, M extends 'static' | 'const' = 'static'> =
   M extends 'const' ? _StaticConst<T, never> : _Static<T, never>;
 
@@ -438,9 +475,9 @@ type _Static<T, Stack extends TSchema[]> = T extends TString
                           : T extends TArray<infer I>
                             ? _Static<I, Stack>[]
                             : T extends TTuple<infer I>
-                              ? { [K in keyof I]: _Static<I[K], Stack> }
-                            : T extends TObject<infer P, infer R, infer O>
-                              ? _StaticObject<P, Extract<R, keyof P>, Extract<O, keyof P>, Stack>
+                              ? { [K in keyof ExpandTupleRest<I>]: _Static<ExpandTupleRest<I>[K], Stack> }
+                              : T extends TObject<infer P, infer R, infer O>
+                                ? _StaticObject<P, Extract<R, keyof P>, Extract<O, keyof P>, Stack>
                                 : T extends TRecord<infer K, infer V>
                                   ? Record<string, _Static<V, Stack>>
                                   : T extends TUnion<infer V>
@@ -501,6 +538,24 @@ type _Static<T, Stack extends TSchema[]> = T extends TString
                                                                 ? _Static<C['returns'], Stack>
                                                               : T extends TConstructorParameters<infer C>
                                                                 ? { [K in keyof C['parameters']]: _Static<C['parameters'][K], Stack> }
+                                                              : T extends TRest<infer I>
+                                                                ? _Static<I, Stack>[]
+                                                              : T extends TCapitalize<infer I>
+                                                                ? _Static<I, Stack> extends string
+                                                                  ? Capitalize<_Static<I, Stack>>
+                                                                  : never
+                                                              : T extends TLowercase<infer I>
+                                                                ? _Static<I, Stack> extends string
+                                                                  ? Lowercase<_Static<I, Stack>>
+                                                                  : never
+                                                              : T extends TUppercase<infer I>
+                                                                ? _Static<I, Stack> extends string
+                                                                  ? Uppercase<_Static<I, Stack>>
+                                                                  : never
+                                                              : T extends TUncapitalize<infer I>
+                                                                ? _Static<I, Stack> extends string
+                                                                  ? Uncapitalize<_Static<I, Stack>>
+                                                                  : never
                                                               : T extends TSymbol
                                                                 ? symbol
                                                                 : unknown;
@@ -558,7 +613,7 @@ type _StaticConst<T, Stack extends TSchema[]> = T extends TString
                           : T extends TArray<infer I>
                             ? _StaticConst<I, Stack>[]
                             : T extends TTuple<infer I>
-                              ? { [K in keyof I]: _StaticConst<I[K], Stack> }
+                              ? { [K in keyof ExpandTupleRest<I>]: _StaticConst<ExpandTupleRest<I>[K], Stack> }
                           : T extends TObject<infer P, infer R, infer O>
                             ? _StaticConstObject<P, Extract<R, keyof P>, Extract<O, keyof P>, Stack>
                                 : T extends TRecord<infer K, infer V>
@@ -607,6 +662,24 @@ type _StaticConst<T, Stack extends TSchema[]> = T extends TString
                                                                 ? _StaticConst<C, Stack> extends never
                                                                   ? _StaticConst<E, Stack>
                                                                   : _StaticConst<T2, Stack>
+                                                              : T extends TRest<infer I>
+                                                                ? readonly _StaticConst<I, Stack>[]
+                                                              : T extends TCapitalize<infer I>
+                                                                ? _StaticConst<I, Stack> extends string
+                                                                  ? Capitalize<_StaticConst<I, Stack>>
+                                                                  : never
+                                                              : T extends TLowercase<infer I>
+                                                                ? _StaticConst<I, Stack> extends string
+                                                                  ? Lowercase<_StaticConst<I, Stack>>
+                                                                  : never
+                                                              : T extends TUppercase<infer I>
+                                                                ? _StaticConst<I, Stack> extends string
+                                                                  ? Uppercase<_StaticConst<I, Stack>>
+                                                                  : never
+                                                              : T extends TUncapitalize<infer I>
+                                                                ? _StaticConst<I, Stack> extends string
+                                                                  ? Uncapitalize<_StaticConst<I, Stack>>
+                                                                  : never
                                                               : T extends TSymbol
                                                                 ? symbol
                                                                 : unknown;
