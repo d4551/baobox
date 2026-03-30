@@ -1,5 +1,7 @@
 import type { Static, TSchema, TObject } from '../type/schema.js';
 
+const NOT_HANDLED = Symbol('create.not-handled');
+
 function cloneValue<T>(value: T): T {
   return (globalThis as typeof globalThis & {
     structuredClone<U>(input: U): U;
@@ -11,11 +13,8 @@ export function Create<T extends TSchema>(schema: T): Static<T> {
   return CreateInternal(schema, new Map()) as Static<T>;
 }
 
-function CreateInternal(schema: TSchema, refs: Map<string, TSchema>): unknown {
-  const s = schema as Record<string, unknown>;
+function createPrimitiveValue(s: Record<string, unknown>): unknown | typeof NOT_HANDLED {
   const kind = s['~kind'] as string | undefined;
-
-  if (s['default'] !== undefined) return cloneValue(s['default']);
 
   switch (kind) {
     case 'String': return '';
@@ -26,16 +25,30 @@ function CreateInternal(schema: TSchema, refs: Map<string, TSchema>): unknown {
     case 'BigInt': return 0n;
     case 'Date': return new globalThis.Date(0);
     case 'Literal': return s['const'];
-    case 'Void': return undefined;
-    case 'Undefined': return undefined;
-    case 'Unknown': return undefined;
-    case 'Any': return undefined;
-    case 'Never': return undefined;
+    case 'Void':
+    case 'Undefined':
+    case 'Unknown':
+    case 'Any':
+    case 'Never':
+      return undefined;
     case 'Symbol': return globalThis.Symbol();
+    case 'Uint8Array': return new globalThis.Uint8Array(0);
+    case 'Function': return () => {};
+    case 'Constructor': return class {};
+    case 'Promise': return globalThis.Promise.resolve(undefined);
+    default:
+      return NOT_HANDLED;
+  }
+}
+
+function createStructuredValue(s: Record<string, unknown>, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  const kind = s['~kind'] as string | undefined;
+
+  switch (kind) {
     case 'Array': return [];
     case 'Tuple': {
       const items = s['items'] as TSchema[];
-      return items.map(item => CreateInternal(item, refs));
+      return items.map((item) => CreateInternal(item, refs));
     }
     case 'Object': {
       const obj: Record<string, unknown> = {};
@@ -52,7 +65,9 @@ function CreateInternal(schema: TSchema, refs: Map<string, TSchema>): unknown {
       }
       return obj;
     }
-    case 'Record': return {};
+    case 'Record':
+    case 'Partial':
+      return {};
     case 'Union': {
       const variants = s['variants'] as TSchema[];
       return variants.length > 0 ? CreateInternal(variants[0] as TSchema, refs) : undefined;
@@ -72,6 +87,23 @@ function CreateInternal(schema: TSchema, refs: Map<string, TSchema>): unknown {
       const values = s['values'] as string[];
       return values.length > 0 ? values[0] : '';
     }
+    case 'Required': {
+      const obj = s['object'] as TObject;
+      const result: Record<string, unknown> = {};
+      for (const [key, propSchema] of Object.entries(obj.properties as Record<string, TSchema>)) {
+        result[key] = CreateInternal(propSchema, refs);
+      }
+      return result;
+    }
+    default:
+      return NOT_HANDLED;
+  }
+}
+
+function createReferenceValue(s: Record<string, unknown>, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  const kind = s['~kind'] as string | undefined;
+
+  switch (kind) {
     case 'Ref': {
       const target = refs.get(s['name'] as string);
       return target ? CreateInternal(target, refs) : undefined;
@@ -81,23 +113,27 @@ function CreateInternal(schema: TSchema, refs: Map<string, TSchema>): unknown {
       nextRefs.set(s['name'] as string, s['schema'] as TSchema);
       return CreateInternal(s['schema'] as TSchema, nextRefs);
     }
-    case 'Partial': {
-      return {};
-    }
-    case 'Required': {
-      const obj = s['object'] as TObject;
-      const result: Record<string, unknown> = {};
-      for (const [key, propSchema] of Object.entries(obj.properties as Record<string, TSchema>)) {
-        result[key] = CreateInternal(propSchema, refs);
-      }
-      return result;
-    }
-    case 'Uint8Array': return new globalThis.Uint8Array(0);
-    case 'Decode': return CreateInternal(s['inner'] as TSchema, refs);
-    case 'Encode': return CreateInternal(s['inner'] as TSchema, refs);
-    case 'Function': return () => {};
-    case 'Constructor': return class {};
-    case 'Promise': return globalThis.Promise.resolve(undefined);
-    default: return undefined;
+    case 'Decode':
+    case 'Encode':
+      return CreateInternal(s['inner'] as TSchema, refs);
+    default:
+      return NOT_HANDLED;
   }
+}
+
+function CreateInternal(schema: TSchema, refs: Map<string, TSchema>): unknown {
+  const s = schema as Record<string, unknown>;
+
+  if (s['default'] !== undefined) return cloneValue(s['default']);
+
+  const primitive = createPrimitiveValue(s);
+  if (primitive !== NOT_HANDLED) {
+    return primitive;
+  }
+  const structured = createStructuredValue(s, refs);
+  if (structured !== NOT_HANDLED) {
+    return structured;
+  }
+  const reference = createReferenceValue(s, refs);
+  return reference !== NOT_HANDLED ? reference : undefined;
 }

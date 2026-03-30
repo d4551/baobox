@@ -21,6 +21,10 @@ interface TBaseSchemaLike extends TSchema {
   Errors?: (input: unknown) => object[];
 }
 
+function invalidTypeIssue(path: readonly string[], expected: string, actual?: string): SchemaIssue[] {
+  return [createSchemaIssue(schemaPath(path), 'INVALID_TYPE', actual === undefined ? { expected } : { expected, actual })];
+}
+
 function collectStringIssues(schema: TString, value: unknown, path: readonly string[], refs: ReferenceMap): SchemaIssue[] {
   const issues: SchemaIssue[] = [];
   const currentPath = schemaPath(path);
@@ -82,6 +86,89 @@ function collectNumberIssues(
   return issues;
 }
 
+function collectBigIntIssues(schema: TBigInt, value: unknown, path: readonly string[]): SchemaIssue[] {
+  const issues: SchemaIssue[] = [];
+  const currentPath = schemaPath(path);
+  if (typeof value !== 'bigint') {
+    return invalidTypeIssue(path, 'bigint', typeof value);
+  }
+  if (schema.minimum !== undefined && value < schema.minimum) {
+    issues.push(createSchemaIssue(currentPath, 'MINIMUM', { minimum: schema.minimum }));
+  }
+  if (schema.maximum !== undefined && value > schema.maximum) {
+    issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { maximum: schema.maximum }));
+  }
+  if (schema.exclusiveMinimum !== undefined && value <= schema.exclusiveMinimum) {
+    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MINIMUM', { minimum: schema.exclusiveMinimum }));
+  }
+  if (schema.exclusiveMaximum !== undefined && value >= schema.exclusiveMaximum) {
+    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MAXIMUM', { maximum: schema.exclusiveMaximum }));
+  }
+  if (schema.multipleOf !== undefined && value % schema.multipleOf !== 0n) {
+    issues.push(createSchemaIssue(currentPath, 'MULTIPLE_OF', { divisor: schema.multipleOf }));
+  }
+  return issues;
+}
+
+function collectDateIssues(schema: TDate, value: unknown, path: readonly string[]): SchemaIssue[] {
+  const issues: SchemaIssue[] = [];
+  const currentPath = schemaPath(path);
+  if (!(value instanceof globalThis.Date) || Number.isNaN(value.getTime())) {
+    return invalidTypeIssue(path, 'Date instance');
+  }
+  const timestamp = value.getTime();
+  if (schema.minimumTimestamp !== undefined && timestamp < schema.minimumTimestamp) {
+    issues.push(createSchemaIssue(currentPath, 'MINIMUM', { label: 'Date timestamp', minimum: schema.minimumTimestamp }));
+  }
+  if (schema.maximumTimestamp !== undefined && timestamp > schema.maximumTimestamp) {
+    issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { label: 'Date timestamp', maximum: schema.maximumTimestamp }));
+  }
+  return issues;
+}
+
+function collectLiteralIssues(schema: TLiteral<string | number | boolean>, value: unknown, path: readonly string[]): SchemaIssue[] {
+  return value === schema.const
+    ? []
+    : [createSchemaIssue(schemaPath(path), 'INVALID_CONST', { expectedValue: JSON.stringify(schema.const) })];
+}
+
+function collectEnumIssues(schema: TEnum, value: unknown, path: readonly string[]): SchemaIssue[] {
+  if (typeof value !== 'string') {
+    return invalidTypeIssue(path, 'string', typeof value);
+  }
+  return schema.values.includes(value)
+    ? []
+    : [createSchemaIssue(schemaPath(path), 'ENUM', { values: schema.values })];
+}
+
+function collectTemplateLiteralIssues(
+  schema: { '~kind': 'TemplateLiteral'; patterns: string[] },
+  value: unknown,
+  path: readonly string[],
+): SchemaIssue[] {
+  if (typeof value !== 'string') {
+    return invalidTypeIssue(path, 'string', typeof value);
+  }
+  return new RegExp(schema.patterns.join('|')).test(value)
+    ? []
+    : [createSchemaIssue(schemaPath(path), 'PATTERN', { label: 'String', patterns: schema.patterns })];
+}
+
+function collectUint8ArrayIssues(schema: TUint8Array, value: unknown, path: readonly string[]): SchemaIssue[] {
+  const issues: SchemaIssue[] = [];
+  const currentPath = schemaPath(path);
+  if (!(value instanceof globalThis.Uint8Array)) {
+    return invalidTypeIssue(path, 'Uint8Array', typeof value);
+  }
+  if (schema.minByteLength !== undefined && value.byteLength < schema.minByteLength) {
+    issues.push(createSchemaIssue(currentPath, 'MIN_LENGTH', { label: 'Uint8Array byteLength', minimum: schema.minByteLength }));
+  }
+  if (schema.maxByteLength !== undefined && value.byteLength > schema.maxByteLength) {
+    issues.push(createSchemaIssue(currentPath, 'MAX_LENGTH', { label: 'Uint8Array byteLength', maximum: schema.maxByteLength }));
+  }
+  return issues;
+}
+
 export function collectPrimitiveIssues(
   kind: string | undefined,
   schema: TSchema,
@@ -98,115 +185,46 @@ export function collectPrimitiveIssues(
       return collectNumberIssues(schema as TNumber, value, path, false);
     case 'Integer':
       return collectNumberIssues(schema as TInteger, value, path, true);
-    case 'BigInt': {
-      const issues: SchemaIssue[] = [];
-      const bigIntSchema = schema as TBigInt;
-      if (typeof value !== 'bigint') {
-        issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'bigint', actual: typeof value }));
-        return issues;
-      }
-      if (bigIntSchema.minimum !== undefined && value < bigIntSchema.minimum) {
-        issues.push(createSchemaIssue(currentPath, 'MINIMUM', { minimum: bigIntSchema.minimum }));
-      }
-      if (bigIntSchema.maximum !== undefined && value > bigIntSchema.maximum) {
-        issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { maximum: bigIntSchema.maximum }));
-      }
-      if (bigIntSchema.exclusiveMinimum !== undefined && value <= bigIntSchema.exclusiveMinimum) {
-        issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MINIMUM', { minimum: bigIntSchema.exclusiveMinimum }));
-      }
-      if (bigIntSchema.exclusiveMaximum !== undefined && value >= bigIntSchema.exclusiveMaximum) {
-        issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MAXIMUM', { maximum: bigIntSchema.exclusiveMaximum }));
-      }
-      if (bigIntSchema.multipleOf !== undefined && value % bigIntSchema.multipleOf !== 0n) {
-        issues.push(createSchemaIssue(currentPath, 'MULTIPLE_OF', { divisor: bigIntSchema.multipleOf }));
-      }
-      return issues;
-    }
-    case 'Date': {
-      const issues: SchemaIssue[] = [];
-      const dateSchema = schema as TDate;
-      if (!(value instanceof globalThis.Date) || Number.isNaN(value.getTime())) {
-        issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'Date instance' }));
-        return issues;
-      }
-      const timestamp = value.getTime();
-      if (dateSchema.minimumTimestamp !== undefined && timestamp < dateSchema.minimumTimestamp) {
-        issues.push(createSchemaIssue(currentPath, 'MINIMUM', { label: 'Date timestamp', minimum: dateSchema.minimumTimestamp }));
-      }
-      if (dateSchema.maximumTimestamp !== undefined && timestamp > dateSchema.maximumTimestamp) {
-        issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { label: 'Date timestamp', maximum: dateSchema.maximumTimestamp }));
-      }
-      return issues;
-    }
+    case 'BigInt':
+      return collectBigIntIssues(schema as TBigInt, value, path);
+    case 'Date':
+      return collectDateIssues(schema as TDate, value, path);
     case 'Boolean':
-      return typeof value === 'boolean' ? [] : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'boolean', actual: typeof value })];
+      return typeof value === 'boolean' ? [] : invalidTypeIssue(path, 'boolean', typeof value);
     case 'Null':
-      return value === null ? [] : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'null' })];
-    case 'Literal': {
-      const literalSchema = schema as TLiteral<string | number | boolean>;
-      return value === literalSchema.const
-        ? []
-        : [createSchemaIssue(currentPath, 'INVALID_CONST', { expectedValue: JSON.stringify(literalSchema.const) })];
-    }
-    case 'Enum': {
-      const enumSchema = schema as TEnum;
-      if (typeof value !== 'string') {
-        return [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'string', actual: typeof value })];
-      }
-      return enumSchema.values.includes(value)
-        ? []
-        : [createSchemaIssue(currentPath, 'ENUM', { values: enumSchema.values })];
-    }
+      return value === null ? [] : invalidTypeIssue(path, 'null');
+    case 'Literal':
+      return collectLiteralIssues(schema as TLiteral<string | number | boolean>, value, path);
+    case 'Enum':
+      return collectEnumIssues(schema as TEnum, value, path);
     case 'Void':
-      return value === undefined || value === null
-        ? []
-        : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'void (undefined or null)' })];
+      return value === undefined || value === null ? [] : invalidTypeIssue(path, 'void (undefined or null)');
     case 'Undefined':
-      return value === undefined ? [] : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'undefined' })];
+      return value === undefined ? [] : invalidTypeIssue(path, 'undefined');
     case 'Never':
       return [createSchemaIssue(currentPath, 'NEVER')];
-    case 'TemplateLiteral': {
-      const templateSchema = schema as { '~kind': 'TemplateLiteral'; patterns: string[] };
-      if (typeof value !== 'string') {
-        return [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'string', actual: typeof value })];
-      }
-      return new RegExp(templateSchema.patterns.join('|')).test(value)
-        ? []
-        : [createSchemaIssue(currentPath, 'PATTERN', { label: 'String', patterns: templateSchema.patterns })];
-    }
-    case 'Uint8Array': {
-      const uint8ArraySchema = schema as TUint8Array;
-      const issues: SchemaIssue[] = [];
-      if (!(value instanceof globalThis.Uint8Array)) {
-        issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'Uint8Array', actual: typeof value }));
-        return issues;
-      }
-      if (uint8ArraySchema.minByteLength !== undefined && value.byteLength < uint8ArraySchema.minByteLength) {
-        issues.push(createSchemaIssue(currentPath, 'MIN_LENGTH', { label: 'Uint8Array byteLength', minimum: uint8ArraySchema.minByteLength }));
-      }
-      if (uint8ArraySchema.maxByteLength !== undefined && value.byteLength > uint8ArraySchema.maxByteLength) {
-        issues.push(createSchemaIssue(currentPath, 'MAX_LENGTH', { label: 'Uint8Array byteLength', maximum: uint8ArraySchema.maxByteLength }));
-      }
-      return issues;
-    }
+    case 'TemplateLiteral':
+      return collectTemplateLiteralIssues(schema as { '~kind': 'TemplateLiteral'; patterns: string[] }, value, path);
+    case 'Uint8Array':
+      return collectUint8ArrayIssues(schema as TUint8Array, value, path);
     case 'Identifier':
       return typeof value === 'string' && /^[$A-Z_a-z][$\w]*$/.test(value)
         ? []
         : [createSchemaIssue(currentPath, typeof value === 'string' ? 'IDENTIFIER' : 'INVALID_TYPE', { expected: 'string', actual: typeof value })];
     case 'Promise':
-      return isPromiseLike(value) ? [] : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'Promise-like value' })];
+      return isPromiseLike(value) ? [] : invalidTypeIssue(path, 'Promise-like value');
     case 'Iterator':
-      return isIteratorLike(value) ? [] : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'iterator value' })];
+      return isIteratorLike(value) ? [] : invalidTypeIssue(path, 'iterator value');
     case 'AsyncIterator':
-      return isAsyncIteratorLike(value) ? [] : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'async iterator value' })];
+      return isAsyncIteratorLike(value) ? [] : invalidTypeIssue(path, 'async iterator value');
     case 'Function':
-      return typeof value === 'function' ? [] : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'function', actual: typeof value })];
+      return typeof value === 'function' ? [] : invalidTypeIssue(path, 'function', typeof value);
     case 'Constructor':
       return typeof value === 'function' && 'prototype' in value
         ? []
-        : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'constructor function' })];
+        : invalidTypeIssue(path, 'constructor function');
     case 'Symbol':
-      return typeof value === 'symbol' ? [] : [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'symbol', actual: typeof value })];
+      return typeof value === 'symbol' ? [] : invalidTypeIssue(path, 'symbol', typeof value);
     case 'Base': {
       const baseSchema = schema as TBaseSchemaLike;
       if (typeof baseSchema.Check === 'function' && !baseSchema.Check(value)) {

@@ -7,13 +7,13 @@ function error(path: string, message: string, code: string): SchemaError {
   return { path, message, code };
 }
 
-export function CollectSchemaErrors(context: SchemaContext, schema: XSchema, value: unknown, root: XSchema = schema, path = '/'): SchemaError[] {
-  if (CheckSchemaValue(context, schema, value, root)) {
-    return [];
-  }
-  if (typeof schema === 'boolean') {
-    return [error(path, 'Boolean schema rejected the value', 'BOOLEAN_SCHEMA')];
-  }
+function collectReferenceErrors(
+  context: SchemaContext,
+  schema: Exclude<XSchema, boolean>,
+  value: unknown,
+  root: XSchema,
+  path: string,
+): SchemaError[] | undefined {
   const ref = typeof schema['$ref'] === 'string' ? schema['$ref'] : undefined;
   if (ref !== undefined) {
     const resolved = context[ref] ?? Ref(root, ref);
@@ -21,6 +21,10 @@ export function CollectSchemaErrors(context: SchemaContext, schema: XSchema, val
       ? [error(path, `Unresolved reference ${ref}`, 'UNRESOLVED_REF')]
       : CollectSchemaErrors(context, resolved, value, root, path);
   }
+  return undefined;
+}
+
+function collectPrimitiveErrors(schema: Exclude<XSchema, boolean>, value: unknown, path: string): SchemaError[] {
   const errors: SchemaError[] = [];
   if ('const' in schema && !Object.is(schema['const'], value)) {
     errors.push(error(path, 'Value does not match const', 'CONST'));
@@ -32,6 +36,17 @@ export function CollectSchemaErrors(context: SchemaContext, schema: XSchema, val
   if ('type' in schema) {
     errors.push(error(path, 'Value does not match type', 'TYPE'));
   }
+  return errors;
+}
+
+function collectNestedErrors(
+  context: SchemaContext,
+  schema: Exclude<XSchema, boolean>,
+  value: unknown,
+  root: XSchema,
+  path: string,
+): SchemaError[] {
+  const errors: SchemaError[] = [];
   if (Array.isArray(value)) {
     const items = IsSchema(schema['items']) ? schema['items'] : undefined;
     if (items !== undefined) {
@@ -50,6 +65,11 @@ export function CollectSchemaErrors(context: SchemaContext, schema: XSchema, val
       }
     }
   }
+  return errors;
+}
+
+function collectCompositionErrors(schema: Exclude<XSchema, boolean>, path: string): SchemaError[] {
+  const errors: SchemaError[] = [];
   if (Array.isArray(schema['allOf'])) {
     errors.push(error(path, 'Value failed allOf', 'ALL_OF'));
   }
@@ -59,6 +79,17 @@ export function CollectSchemaErrors(context: SchemaContext, schema: XSchema, val
   if (Array.isArray(schema['oneOf'])) {
     errors.push(error(path, 'Value failed oneOf', 'ONE_OF'));
   }
+  return errors;
+}
+
+function collectExtensionErrors(
+  context: SchemaContext,
+  schema: Exclude<XSchema, boolean>,
+  value: unknown,
+  root: XSchema,
+  path: string,
+): SchemaError[] {
+  const errors: SchemaError[] = [];
   const notSchema = IsSchema(schema['not']) ? schema['not'] : undefined;
   if (notSchema !== undefined && CheckSchemaValue(context, notSchema, value, root)) {
     errors.push(error(path, 'Value matched a negated schema', 'NOT'));
@@ -76,5 +107,27 @@ export function CollectSchemaErrors(context: SchemaContext, schema: XSchema, val
       }
     });
   }
+  return errors;
+}
+
+export function CollectSchemaErrors(context: SchemaContext, schema: XSchema, value: unknown, root: XSchema = schema, path = '/'): SchemaError[] {
+  if (CheckSchemaValue(context, schema, value, root)) {
+    return [];
+  }
+  if (typeof schema === 'boolean') {
+    return [error(path, 'Boolean schema rejected the value', 'BOOLEAN_SCHEMA')];
+  }
+
+  const referenceErrors = collectReferenceErrors(context, schema, value, root, path);
+  if (referenceErrors !== undefined) {
+    return referenceErrors;
+  }
+
+  const errors = [
+    ...collectPrimitiveErrors(schema, value, path),
+    ...collectNestedErrors(context, schema, value, root, path),
+    ...collectCompositionErrors(schema, path),
+    ...collectExtensionErrors(context, schema, value, root, path),
+  ];
   return errors.length > 0 ? errors : [error(path, 'Schema validation failed', 'SCHEMA')];
 }

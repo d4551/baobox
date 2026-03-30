@@ -31,7 +31,7 @@ describe('documentation smoke: choose Check vs TryParse vs Parse vs Compile', ()
     })).toBe(false);
   });
 
-  it('uses TryParse when callers want normalized output without try/catch', () => {
+  it('uses TryParse when callers want normalized output without throwing', () => {
     const counter = B.Object({
       count: B.Number(),
       label: B.Optional(B.String()),

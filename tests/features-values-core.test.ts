@@ -196,6 +196,12 @@ describe('Value.Clean', () => {
     const result = Clean(schema, { a: 'x', b: 1 });
     expect(result).toEqual({ a: 'x', b: 1 });
   });
+
+  it('preserves tuple extras when additionalItems is enabled', () => {
+    const schema = B.Tuple([B.String(), B.Number()], { additionalItems: true });
+    const result = Clean(schema, ['Ada', 37, true, 'extra']);
+    expect(result).toEqual(['Ada', 37, true, 'extra']);
+  });
 });
 
 describe('Value.Convert', () => {

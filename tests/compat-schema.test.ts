@@ -26,6 +26,7 @@ const {
   Pick,
   Recursive,
   String,
+  Tuple,
   Uint8Array,
   Union,
 } = B;
@@ -69,6 +70,14 @@ describe('compat schema emission', () => {
     expect(result.type).toBe('object');
     expect(result.propertyNames).toEqual({ type: 'string', pattern: '^item-' });
     expect(result.additionalProperties).toEqual({ type: 'number' });
+  });
+
+  test('Tuple with additionalItems emits an open array schema', () => {
+    const result = To(Tuple([String(), Number()], { additionalItems: true }));
+    expect(result.type).toBe('array');
+    expect(result.minItems).toBe(2);
+    expect(result.maxItems).toBeUndefined();
+    expect(result.items).toEqual({});
   });
 
   test('Uint8Array emits base64 string schema with comment', () => {

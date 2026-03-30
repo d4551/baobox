@@ -1,6 +1,7 @@
 import type { TObject, TSchema } from './schema.js';
 import type { TInfer } from './extensions.js';
 import type { TProperties } from './instantiation.js';
+import { schemaConst, schemaKind, schemaVariants } from '../shared/schema-access.js';
 
 export interface TExtendsUnion<Inferred extends TProperties = TProperties> {
   '~kind': 'ExtendsUnion';
@@ -39,10 +40,6 @@ function mergeInferred(left: TProperties, right: TProperties): TProperties {
   return { ...left, ...right };
 }
 
-function schemaKind(schema: TSchema): string | undefined {
-  return (schema as Record<string, unknown>)['~kind'] as string | undefined;
-}
-
 function extendsObject(inferred: TProperties, left: TObject, right: TObject): TExtendsResult {
   const leftProps = left.properties as Record<string, TSchema>;
   const rightProps = right.properties as Record<string, TSchema>;
@@ -61,10 +58,10 @@ function extendsObject(inferred: TProperties, left: TObject, right: TObject): TE
 }
 
 function extendsLiteral(left: TSchema, right: TSchema): boolean {
-  const leftValue = (left as Record<string, unknown>)['const'];
+  const leftValue = schemaConst(left);
   const rightKind = schemaKind(right);
   if (rightKind === 'Literal') {
-    return leftValue === (right as Record<string, unknown>)['const'];
+    return leftValue === schemaConst(right);
   }
   if (rightKind === 'String') return typeof leftValue === 'string';
   if (rightKind === 'Number' || rightKind === 'Integer') return typeof leftValue === 'number';
@@ -93,9 +90,8 @@ function extendsSchemas(inferred: TProperties, left: TSchema, right: TSchema): T
   const rightKind = schemaKind(right);
 
   if (rightKind === 'Union') {
-    const union = right as TSchema & { variants: TSchema[] };
     let sawUnion = false;
-    for (const variant of union.variants) {
+    for (const variant of schemaVariants(right)) {
       const result = inferFromSchema(inferred, left, variant);
       if (result['~kind'] === 'ExtendsTrue') return result;
       if (result['~kind'] === 'ExtendsUnion') sawUnion = true;
@@ -104,9 +100,8 @@ function extendsSchemas(inferred: TProperties, left: TSchema, right: TSchema): T
   }
 
   if (leftKind === 'Union') {
-    const union = left as TSchema & { variants: TSchema[] };
     let result: TExtendsResult = extendsTrue(inferred);
-    for (const variant of union.variants) {
+    for (const variant of schemaVariants(left)) {
       result = extendsSchemas(result.inferred, variant, right);
       if (!isExtendsTrueLike(result)) return result;
     }

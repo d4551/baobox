@@ -44,7 +44,7 @@ export function Tuple<TItems extends TSchema[]>(
     '~kind': 'Tuple',
     items: expandedItems,
     minItems: options?.minItems ?? expandedItems.length,
-    maxItems: options?.maxItems ?? expandedItems.length,
+    maxItems: options?.maxItems ?? (options?.additionalItems === true ? undefined : expandedItems.length),
     additionalItems: options?.additionalItems ?? false,
     ...options,
   } as TTuple<ExpandRestItems<TItems>>;

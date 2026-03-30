@@ -2,20 +2,29 @@ import type {
   TArray,
   TEnum,
   TInteger,
-  TIntersect,
-  TLiteral,
   TNumber,
   TObject,
-  TOptional,
-  TReadonly,
   TRecord,
   TSchema,
   TString,
   TTuple,
   TUint8Array,
-  TUnion,
 } from '../type/schema.js';
-import { emitAdvancedSchema, integerSchema, numberSchema, objectLikeSchema, stringSchema } from './emitter-advanced.js';
+import {
+  schemaConst,
+  schemaItem,
+  schemaItemOrInner,
+  schemaRefinements,
+  schemaStringListField,
+  schemaUnknownField,
+  schemaVariants,
+} from '../shared/schema-access.js';
+import { integerSchema, numberSchema, objectLikeSchema, stringSchema } from './emitter-base.js';
+import { emitAdvancedSchema } from './emitter-advanced.js';
+import { emitDerivedSchema } from './emitter-derived.js';
+import { emitReferenceSchema } from './emitter-reference.js';
+import { emitWrapperSchema } from './emitter-wrapper.js';
+import type { ApplyOptions, EmitJsonSchema } from './emitter-types.js';
 
 export interface JsonSchemaOptions {
   descriptions?: boolean;
@@ -82,23 +91,31 @@ export function To(schema: TSchema, options: JsonSchemaOptions = {}): JsonSchema
   return toJsonSchema(schema, new Map(), options ?? {});
 }
 
-function toJsonSchema(
+function applySchemaOptions(
+  schema: TSchema,
+  options: JsonSchemaOptions,
+): ApplyOptions {
+  const { descriptions = true, titles = true, defaults = true } = options;
+  return (obj: JsonSchema, extra: JsonSchema = {}): JsonSchema => {
+    const result: JsonSchema = { ...obj, ...extra };
+    const description = schemaUnknownField(schema, 'description');
+    const title = schemaUnknownField(schema, 'title');
+    const defaultValue = schemaUnknownField(schema, 'default');
+    if (descriptions && typeof description === 'string') result.description = description;
+    if (titles && typeof title === 'string') result.title = title;
+    if (defaults && defaultValue !== undefined) result['default'] = defaultValue;
+    return result;
+  };
+}
+
+function emitBuiltInSchema(
+  kind: string | undefined,
   schema: TSchema,
   refs: Map<string, TSchema>,
   options: JsonSchemaOptions,
-): JsonSchema {
-  const schemaRecord = schema as Record<string, unknown>;
-  const kind = schemaRecord['~kind'] as string | undefined;
-  const { descriptions = true, titles = true, defaults = true } = options;
-
-  const opt = (obj: JsonSchema, extra: JsonSchema = {}): JsonSchema => {
-    const result: JsonSchema = { ...obj, ...extra };
-    if (descriptions && typeof schemaRecord['description'] === 'string') result.description = schemaRecord['description'];
-    if (titles && typeof schemaRecord['title'] === 'string') result.title = schemaRecord['title'];
-    if (defaults && schemaRecord['default'] !== undefined) result['default'] = schemaRecord['default'];
-    return result;
-  };
-
+  opt: ApplyOptions,
+  emit: EmitJsonSchema,
+): JsonSchema | undefined {
   switch (kind) {
     case 'String':
       return opt(stringSchema(schema as TString));
@@ -127,7 +144,7 @@ function toJsonSchema(
     case 'Date':
       return opt({ type: 'string', format: 'date-time', $comment: 'Date runtime instance; validated as native Date at runtime.' });
     case 'Literal':
-      return opt({ const: (schema as TLiteral<string | number | boolean>)['const'] });
+      return opt({ const: schemaConst(schema) as string | number | boolean | null });
     case 'Void':
       return opt({ type: 'null', description: 'void (undefined or null)' });
     case 'Undefined':
@@ -141,24 +158,24 @@ function toJsonSchema(
       const array = schema as TArray;
       return opt({
         type: 'array',
-        items: toJsonSchema(array.items, refs, options),
+        items: emit(array.items, refs, options),
         ...(array.minItems !== undefined ? { minItems: array.minItems } : {}),
         ...(array.maxItems !== undefined ? { maxItems: array.maxItems } : {}),
         ...(array.uniqueItems ? { uniqueItems: true } : {}),
-        ...(array.contains !== undefined ? { contains: toJsonSchema(array.contains, refs, options) } : {}),
+        ...(array.contains !== undefined ? { contains: emit(array.contains, refs, options) } : {}),
         ...(array.minContains !== undefined ? { minContains: array.minContains } : {}),
         ...(array.maxContains !== undefined ? { maxContains: array.maxContains } : {}),
       });
     }
     case 'Object':
-      return opt(objectLikeSchema(schema as TObject<Record<string, TSchema>, string, string>, refs, options, toJsonSchema));
+      return opt(objectLikeSchema(schema as TObject<Record<string, TSchema>, string, string>, refs, options, emit));
     case 'Tuple': {
       const tuple = schema as TTuple;
       return opt({
         type: 'array',
-        prefixItems: tuple.items.map((item) => toJsonSchema(item, refs, options)),
-        minItems: tuple.items.length,
-        maxItems: tuple.items.length,
+        prefixItems: tuple.items.map((item) => emit(item, refs, options)),
+        minItems: tuple.minItems ?? tuple.items.length,
+        ...(tuple.maxItems !== undefined ? { maxItems: tuple.maxItems } : tuple.additionalItems === true ? {} : { maxItems: tuple.items.length }),
         items: tuple.additionalItems === true ? {} : false,
       });
     }
@@ -166,33 +183,50 @@ function toJsonSchema(
       const record = schema as TRecord;
       return opt({
         type: 'object',
-        propertyNames: toJsonSchema(record.key, refs, options),
-        additionalProperties: toJsonSchema(record.value, refs, options),
+        propertyNames: emit(record.key, refs, options),
+        additionalProperties: emit(record.value, refs, options),
         ...(record.minProperties !== undefined ? { minProperties: record.minProperties } : {}),
         ...(record.maxProperties !== undefined ? { maxProperties: record.maxProperties } : {}),
       });
     }
     case 'Union':
-      return opt({ anyOf: (schema as TUnion).variants.map((entry) => toJsonSchema(entry, refs, options)) });
+      return opt({ anyOf: schemaVariants(schema).map((entry) => emit(entry, refs, options)) });
     case 'Intersect':
-      return opt({ allOf: (schema as TIntersect).variants.map((entry) => toJsonSchema(entry, refs, options)) });
+      return opt({ allOf: schemaVariants(schema).map((entry) => emit(entry, refs, options)) });
     case 'Optional':
-      return { ...toJsonSchema((schema as TOptional<TSchema>).item, refs, options), $comment: 'Optional wrapper accepts undefined at runtime; JSON Schema represents the defined-value branch only.' };
+      return { ...emit(schemaItem(schema) ?? schema, refs, options), $comment: 'Optional wrapper accepts undefined at runtime; JSON Schema represents the defined-value branch only.' };
     case 'Readonly':
-      return toJsonSchema((schema as TReadonly<TSchema>).item, refs, options);
     case 'Immutable':
-      return toJsonSchema((schema as TSchema & { item: TSchema }).item, refs, options);
+      return emit(schemaItem(schema) ?? schema, refs, options);
     case 'Codec':
-      return toJsonSchema((schema as TSchema & { inner: TSchema }).inner, refs, options);
+      return emit(schemaItemOrInner(schema) ?? schema, refs, options);
     case 'Refine': {
-      const refined = schema as TSchema & { item: TSchema; '~refine': Array<{ message: string }> };
-      const emitted = toJsonSchema(refined.item, refs, options);
-      const messages = refined['~refine'].map((entry) => entry.message);
+      const emitted = emit(schemaItem(schema) ?? schema, refs, options);
+      const messages = schemaRefinements(schema)
+        .flatMap((entry) => entry.message === undefined ? [] : [entry.message]);
       return { ...emitted, ...(messages.length > 0 ? { $comment: messages.join('; ') } : {}) };
     }
     case 'Enum':
-      return opt({ type: 'string', enum: (schema as TEnum).values });
+      return opt({ type: 'string', enum: schemaStringListField(schema, 'values') });
     default:
-      return emitAdvancedSchema(kind, schema, refs, options, descriptions, titles, opt, toJsonSchema) ?? {};
+      return undefined;
   }
+}
+
+function toJsonSchema(
+  schema: TSchema,
+  refs: Map<string, TSchema>,
+  options: JsonSchemaOptions,
+): JsonSchema {
+  const kind = schemaUnknownField(schema, '~kind');
+  const resolvedKind = typeof kind === 'string' ? kind : undefined;
+  const opt = applySchemaOptions(schema, options);
+  const emit: EmitJsonSchema = (nextSchema, nextRefs, nextOptions) => toJsonSchema(nextSchema, nextRefs, nextOptions);
+
+  return emitBuiltInSchema(resolvedKind, schema, refs, options, opt, emit)
+    ?? emitReferenceSchema(resolvedKind, schema, refs, options, opt, emit)
+    ?? emitWrapperSchema(resolvedKind, schema, refs, options, opt, emit)
+    ?? emitDerivedSchema(resolvedKind, schema, refs, options, opt, emit)
+    ?? emitAdvancedSchema(resolvedKind, schema, refs, options, opt, emit)
+    ?? {};
 }

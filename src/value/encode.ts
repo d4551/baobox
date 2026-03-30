@@ -1,4 +1,16 @@
 import type { StaticEncode, TSchema } from '../type/schema.js';
+import {
+  schemaCallbackField,
+  schemaDefinitions,
+  schemaInner,
+  schemaItem,
+  schemaKind,
+  schemaProperties,
+  schemaSchemaField,
+  schemaSchemaListField,
+  schemaStringField,
+  schemaUnknownField,
+} from '../shared/schema-access.js';
 import { Instantiate } from '../type/instantiation.js';
 
 /** Run encode callbacks depth-first on a value */
@@ -6,81 +18,122 @@ export function Encode<T extends TSchema>(schema: T, value: unknown): StaticEnco
   return EncodeInternal(schema, value, new Map()) as StaticEncode<T>;
 }
 
-function EncodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
-  const s = schema as Record<string, unknown>;
-  const kind = s['~kind'] as string | undefined;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
-  switch (kind) {
-    case 'Encode': {
-      const inner = s['inner'] as TSchema;
-      const encodeFn = s['encode'] as (v: unknown) => unknown;
-      const encoded = encodeFn(value);
-      return EncodeInternal(inner, encoded, refs);
-    }
-    case 'Codec': {
-      const inner = s['inner'] as TSchema;
-      const codec = s['codec'] as { encode: (input: unknown) => unknown };
-      return EncodeInternal(inner, codec.encode(value), refs);
-    }
-    case 'Object': {
-      if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
-      const result: Record<string, unknown> = {};
-      const props = s['properties'] as Record<string, TSchema>;
-      const obj = value as Record<string, unknown>;
-      for (const [key, val] of Object.entries(obj)) {
-        const propSchema = props[key];
-        result[key] = propSchema ? EncodeInternal(propSchema, val, refs) : val;
-      }
-      return result;
-    }
-    case 'Array': {
-      if (!Array.isArray(value)) return value;
-      return value.map(item => EncodeInternal(s['items'] as TSchema, item, refs));
-    }
-    case 'Tuple': {
-      if (!Array.isArray(value)) return value;
-      const items = s['items'] as TSchema[];
-      return value.map((item, i) => items[i] ? EncodeInternal(items[i], item, refs) : item);
-    }
-    case 'Optional':
-    case 'Readonly':
-    case 'Immutable':
-      return value === undefined ? value : EncodeInternal(s['item'] as TSchema, value, refs);
-    case 'Refine':
-      return value === undefined ? value : EncodeInternal(s['item'] as TSchema, value, refs);
-    case 'Generic':
-      return EncodeInternal(s['expression'] as TSchema, value, refs);
-    case 'Infer':
-      return EncodeInternal(s['extends'] as TSchema, value, refs);
+function resolveCodec(schema: TSchema): { encode: (input: unknown) => unknown } | undefined {
+  const codec = schemaUnknownField(schema, 'codec');
+  return isRecord(codec) && typeof codec.encode === 'function'
+    ? codec as { encode: (input: unknown) => unknown }
+    : undefined;
+}
+
+function encodeObject(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
+  if (!isRecord(value) || Array.isArray(value)) return value;
+  const result: Record<string, unknown> = {};
+  const properties = schemaProperties(schema);
+  for (const [key, entryValue] of Object.entries(value)) {
+    const propertySchema = properties[key];
+    result[key] = propertySchema ? EncodeInternal(propertySchema, entryValue, refs) : entryValue;
+  }
+  return result;
+}
+
+function encodeArrayItems(itemSchema: TSchema | undefined, value: unknown, refs: Map<string, TSchema>): unknown {
+  return Array.isArray(value) && itemSchema
+    ? value.map((item) => EncodeInternal(itemSchema, item, refs))
+    : value;
+}
+
+function encodeTupleItems(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
+  if (!Array.isArray(value)) return value;
+  const items = schemaSchemaListField(schema, 'items');
+  return value.map((item, index) => {
+    const itemSchema = items[index];
+    return itemSchema ? EncodeInternal(itemSchema, item, refs) : item;
+  });
+}
+
+function encodeWrappedInner(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
+  const inner = schemaInner(schema) ?? schemaItem(schema);
+  return value === undefined || inner === undefined
+    ? value
+    : EncodeInternal(inner, value, refs);
+}
+
+function encodeReferenceSchema(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
+  switch (schemaKind(schema)) {
     case 'Call': {
       const instantiated = Instantiate({}, schema);
       return instantiated === schema ? value : EncodeInternal(instantiated, value, refs);
     }
     case 'Cyclic': {
-      const defs = s['$defs'] as Record<string, TSchema>;
+      const defs = schemaDefinitions(schema);
+      const refName = schemaStringField(schema, '$ref');
       const nextRefs = new Map(refs);
       for (const [key, definition] of Object.entries(defs)) {
         nextRefs.set(key, definition);
       }
-      const target = defs[s['$ref'] as string];
+      const target = refName ? defs[refName] : undefined;
       return target === undefined ? value : EncodeInternal(target, value, nextRefs);
     }
     case 'Recursive': {
+      const name = schemaStringField(schema, 'name');
+      const target = schemaSchemaField(schema, 'schema');
+      if (!name || target === undefined) return value;
       const nextRefs = new Map(refs);
-      nextRefs.set(s['name'] as string, s['schema'] as TSchema);
-      nextRefs.set('#', s['schema'] as TSchema);
-      return EncodeInternal(s['schema'] as TSchema, value, nextRefs);
+      nextRefs.set(name, target);
+      nextRefs.set('#', target);
+      return EncodeInternal(target, value, nextRefs);
     }
     case 'Ref': {
-      const target = refs.get(s['name'] as string);
+      const target = refs.get(schemaStringField(schema, 'name') ?? '');
       return target ? EncodeInternal(target, value, refs) : value;
     }
+    default:
+      return value;
+  }
+}
+
+function EncodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
+  switch (schemaKind(schema)) {
+    case 'Encode': {
+      const inner = schemaInner(schema);
+      const encode = schemaCallbackField<(value: unknown) => unknown>(schema, 'encode');
+      return inner && encode ? EncodeInternal(inner, encode(value), refs) : value;
+    }
+    case 'Codec': {
+      const inner = schemaInner(schema);
+      const codec = resolveCodec(schema);
+      return inner && codec ? EncodeInternal(inner, codec.encode(value), refs) : value;
+    }
+    case 'Object':
+      return encodeObject(schema, value, refs);
+    case 'Array':
+      return encodeArrayItems(schemaSchemaField(schema, 'items'), value, refs);
+    case 'Tuple':
+      return encodeTupleItems(schema, value, refs);
+    case 'Optional':
+    case 'Readonly':
+    case 'Immutable':
+    case 'Refine':
+      return encodeWrappedInner(schema, value, refs);
+    case 'Generic':
+      return EncodeInternal(schemaSchemaField(schema, 'expression') ?? schema, value, refs);
+    case 'Infer':
+      return EncodeInternal(schemaSchemaField(schema, 'extends') ?? schema, value, refs);
+    case 'Call':
+    case 'Cyclic':
+    case 'Recursive':
+    case 'Ref':
+      return encodeReferenceSchema(schema, value, refs);
     case 'Decode':
-      return EncodeInternal(s['inner'] as TSchema, value, refs);
-    case 'Base':
-      return typeof s['Convert'] === 'function'
-        ? (s['Convert'] as (input: unknown) => unknown)(value)
-        : value;
+      return encodeWrappedInner(schema, value, refs);
+    case 'Base': {
+      const convert = schemaCallbackField<(input: unknown) => unknown>(schema, 'Convert');
+      return convert ? convert(value) : value;
+    }
     default:
       return value;
   }

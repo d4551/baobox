@@ -1,4 +1,4 @@
-import type { TSchema } from './schema.js';
+import type { TSchema, TTemplateLiteral } from './schema.js';
 
 function isKind<T extends TSchema>(schema: TSchema, kind: string): schema is T {
   return (schema as { '~kind'?: string })['~kind'] === kind;
@@ -50,7 +50,7 @@ export function IsOmit(schema: TSchema): boolean { return isKind(schema, 'Omit')
 export function IsNot(schema: TSchema): boolean { return isKind(schema, 'Not'); }
 export function IsIfThenElse(schema: TSchema): boolean { return isKind(schema, 'IfThenElse'); }
 export function IsUnsafe(schema: TSchema): boolean { return isKind(schema, 'Unsafe'); }
-export function IsTemplateLiteral(schema: TSchema): boolean { return isKind(schema, 'TemplateLiteral'); }
+export function IsTemplateLiteral(schema: TSchema): schema is TTemplateLiteral { return isKind(schema, 'TemplateLiteral'); }
 export function IsIndex(schema: TSchema): boolean { return isKind(schema, 'Index'); }
 export function IsMapped(schema: TSchema): boolean { return isKind(schema, 'Mapped'); }
 export function IsConditional(schema: TSchema): boolean { return isKind(schema, 'Conditional'); }

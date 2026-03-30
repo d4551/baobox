@@ -56,8 +56,8 @@ describe('Pointer', () => {
   });
 
   it('Set — creates intermediate objects', () => {
-    const result = Pointer.Set({}, '/x/y/z', 42) as { x: { y: { z: number } } };
-    expect(result.x.y.z).toBe(42);
+    const result = Pointer.Set({}, '/x/y/z', 42);
+    expect(Pointer.Get(result, '/x/y/z')).toBe(42);
   });
 
   it('Set — handles array indices', () => {
@@ -173,6 +173,12 @@ describe('Repair', () => {
     expect(serialized).toContain('"hello"');
     expect(serialized).toContain('0');
     expect(serialized).toContain('false');
+  });
+
+  it('preserves tuple extras when additionalItems is enabled', () => {
+    const schema = Tuple([String(), Number()], { additionalItems: true });
+    const result = Repair(schema, ['hello', 1, true, 'extra']);
+    expect(result).toEqual(['hello', 1, true, 'extra']);
   });
 
   it('does not mutate the original value', () => {

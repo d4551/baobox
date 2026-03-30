@@ -94,9 +94,17 @@ function repairArray(schema: TArray, value: unknown, refs: ReferenceMap): unknow
 
 function repairTuple(schema: TTuple, value: unknown, refs: ReferenceMap): unknown[] {
   if (!Array.isArray(value)) return schema.items.map((item) => Create(item));
-  return schema.items.map((itemSchema, index) =>
+  const repairedItems = schema.items.map((itemSchema, index) =>
     index < value.length ? repairInternal(itemSchema, value[index], refs) : Create(itemSchema)
   );
+  if (!schema.additionalItems) {
+    return repairedItems;
+  }
+  const extraItems = value.slice(schema.items.length);
+  if (schema.maxItems === undefined) {
+    return [...repairedItems, ...extraItems];
+  }
+  return [...repairedItems, ...extraItems.slice(0, Math.max(schema.maxItems - repairedItems.length, 0))];
 }
 
 function repairRecord(schema: TRecord, value: unknown, refs: ReferenceMap): Record<string, unknown> {

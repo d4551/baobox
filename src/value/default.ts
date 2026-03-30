@@ -1,5 +1,7 @@
 import type { StaticParse, TSchema } from '../type/schema.js';
 
+const NOT_HANDLED = Symbol('default.not-handled');
+
 function cloneValue<T>(value: T): T {
   return (globalThis as typeof globalThis & {
     structuredClone<U>(input: U): U;
@@ -11,13 +13,8 @@ export function Default<T extends TSchema>(schema: T, value: unknown): StaticPar
   return DefaultInternal(schema, value, new Map()) as StaticParse<T>;
 }
 
-function DefaultInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
-  const s = schema as Record<string, unknown>;
+function defaultStructuredValue(s: Record<string, unknown>, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
   const kind = s['~kind'] as string | undefined;
-
-  if (value === undefined && s['default'] !== undefined) {
-    return cloneValue(s['default']);
-  }
 
   switch (kind) {
     case 'Object': {
@@ -39,19 +36,26 @@ function DefaultInternal(schema: TSchema, value: unknown, refs: Map<string, TSch
     case 'Array': {
       if (!Array.isArray(value)) return value;
       const itemSchema = s['items'] as TSchema;
-      return value.map(item => DefaultInternal(itemSchema, item, refs));
+      return value.map((item) => DefaultInternal(itemSchema, item, refs));
     }
     case 'Tuple': {
       if (!Array.isArray(value)) return value;
       const items = s['items'] as TSchema[];
       return value.map((item, i) => items[i] ? DefaultInternal(items[i], item, refs) : item);
     }
-    case 'Optional': {
+    default:
+      return NOT_HANDLED;
+  }
+}
+
+function defaultCompositeValue(s: Record<string, unknown>, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  const kind = s['~kind'] as string | undefined;
+
+  switch (kind) {
+    case 'Optional':
       return value === undefined ? value : DefaultInternal(s['item'] as TSchema, value, refs);
-    }
-    case 'Readonly': {
+    case 'Readonly':
       return DefaultInternal(s['item'] as TSchema, value, refs);
-    }
     case 'Intersect': {
       const variants = s['variants'] as TSchema[];
       let result = value;
@@ -60,9 +64,8 @@ function DefaultInternal(schema: TSchema, value: unknown, refs: Map<string, TSch
       }
       return result;
     }
-    case 'Union': {
+    case 'Union':
       return value;
-    }
     case 'Recursive': {
       const nextRefs = new Map(refs);
       nextRefs.set(s['name'] as string, s['schema'] as TSchema);
@@ -76,6 +79,21 @@ function DefaultInternal(schema: TSchema, value: unknown, refs: Map<string, TSch
     case 'Encode':
       return DefaultInternal(s['inner'] as TSchema, value, refs);
     default:
-      return value;
+      return NOT_HANDLED;
   }
+}
+
+function DefaultInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
+  const s = schema as Record<string, unknown>;
+
+  if (value === undefined && s['default'] !== undefined) {
+    return cloneValue(s['default']);
+  }
+
+  const structured = defaultStructuredValue(s, value, refs);
+  if (structured !== NOT_HANDLED) {
+    return structured;
+  }
+  const composite = defaultCompositeValue(s, value, refs);
+  return composite !== NOT_HANDLED ? composite : value;
 }

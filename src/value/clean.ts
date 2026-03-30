@@ -1,12 +1,13 @@
 import type { StaticParse, TSchema } from '../type/schema.js';
 
+const NOT_HANDLED = Symbol('clean.not-handled');
+
 /** Remove properties not defined in the schema from a value */
 export function Clean<T extends TSchema>(schema: T, value: unknown): StaticParse<T> {
   return CleanInternal(schema, value, new Map()) as StaticParse<T>;
 }
 
-function CleanInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
-  const s = schema as Record<string, unknown>;
+function cleanStructuredValue(s: Record<string, unknown>, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
   const kind = s['~kind'] as string | undefined;
 
   switch (kind) {
@@ -32,14 +33,17 @@ function CleanInternal(schema: TSchema, value: unknown, refs: Map<string, TSchem
     case 'Array': {
       if (!Array.isArray(value)) return value;
       const itemSchema = s['items'] as TSchema;
-      return value.map(item => CleanInternal(itemSchema, item, refs));
+      return value.map((item) => CleanInternal(itemSchema, item, refs));
     }
     case 'Tuple': {
       if (!Array.isArray(value)) return value;
       const items = s['items'] as TSchema[];
-      return value.slice(0, items.length).map((item, i) =>
+      const cleanedItems = value.slice(0, items.length).map((item, i) =>
         items[i] ? CleanInternal(items[i], item, refs) : item
       );
+      return s['additionalItems'] === true
+        ? [...cleanedItems, ...value.slice(items.length)]
+        : cleanedItems;
     }
     case 'Record': {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
@@ -50,6 +54,15 @@ function CleanInternal(schema: TSchema, value: unknown, refs: Map<string, TSchem
       }
       return result;
     }
+    default:
+      return NOT_HANDLED;
+  }
+}
+
+function cleanCompositeValue(s: Record<string, unknown>, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  const kind = s['~kind'] as string | undefined;
+
+  switch (kind) {
     case 'Union': {
       const variants = s['variants'] as TSchema[];
       for (const variant of variants) {
@@ -82,6 +95,16 @@ function CleanInternal(schema: TSchema, value: unknown, refs: Map<string, TSchem
     case 'Encode':
       return CleanInternal(s['inner'] as TSchema, value, refs);
     default:
-      return value;
+      return NOT_HANDLED;
   }
+}
+
+function CleanInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
+  const s = schema as Record<string, unknown>;
+  const structured = cleanStructuredValue(s, value, refs);
+  if (structured !== NOT_HANDLED) {
+    return structured;
+  }
+  const composite = cleanCompositeValue(s, value, refs);
+  return composite !== NOT_HANDLED ? composite : value;
 }

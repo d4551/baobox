@@ -5,7 +5,7 @@ Baobox exposes four primary runtime validation workflows. They share the same sc
 | Need | API | Returns | Use when |
 | --- | --- | --- | --- |
 | Boolean validation | `Check(schema, value)` | `boolean` | You only need pass or fail |
-| Normalize without exceptions | `TryParse(schema, value)` | `ParseResult<T>` | You want normalized output and structured errors without try/catch |
+| Normalize without exceptions | `TryParse(schema, value)` | `ParseResult<T>` | You want normalized output and structured errors without throwing |
 | Normalize then validate | `Parse(schema, value)` | normalized value or throws `ParseError` | You want defaults, conversions, and cleanup before validation |
 | Reusable hot-path validator | `Compile(schema)` | `Validator` | You will validate the same schema repeatedly |
 
@@ -76,7 +76,7 @@ Parse(Counter, { count: '5', extra: true })
 // { count: 5 }
 ```
 
-If the normalized value still fails validation, `Parse` throws `ParseError`. This preserves the upstream TypeBox-style contract. Prefer `TryParse` when the caller bans try/catch.
+If the normalized value still fails validation, `Parse` throws `ParseError`. This preserves the upstream TypeBox-style contract. Prefer `TryParse` when the caller wants a non-throwing path.
 
 ## Compile
 

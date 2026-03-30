@@ -87,25 +87,61 @@ interface TEncodeSchema extends TSchema {
   inner: TSchema;
 }
 
-export function collectAdvancedIssues(
+function unresolvedRefIssue(path: readonly string[]): SchemaIssue[] {
+  return [createSchemaIssue(schemaPath(path), 'UNRESOLVED_REF')];
+}
+
+function collectDelegatedIssues(
   kind: string | undefined,
   schema: TSchema,
   value: unknown,
   path: readonly string[],
   refs: ReferenceMap,
   collectSchemaIssues: CollectSchemaIssues,
-): SchemaIssue[] {
-  const currentPath = schemaPath(path);
-
+): SchemaIssue[] | undefined {
   switch (kind) {
     case 'Optional':
       return value === undefined ? [] : collectSchemaIssues((schema as TOptional<TSchema>).item, value, path, refs);
     case 'Readonly':
-      return collectSchemaIssues((schema as TOptional<TSchema>).item, value, path, refs);
     case 'Immutable':
       return collectSchemaIssues((schema as TOptional<TSchema>).item, value, path, refs);
     case 'Codec':
       return collectSchemaIssues((schema as TCodecSchema).inner, value, path, refs);
+    case 'Decode':
+      return collectSchemaIssues((schema as TDecodeSchema).inner, value, path, refs);
+    case 'Encode':
+      return collectSchemaIssues((schema as TEncodeSchema).inner, value, path, refs);
+    case 'Awaited':
+      return collectSchemaIssues((schema as TAwaited).promise.item, value, path, refs);
+    case 'ReturnType':
+      return collectSchemaIssues((schema as TReturnType).function.returns, value, path, refs);
+    case 'InstanceType':
+      return collectSchemaIssues((schema as TInstanceType<TConstructor>).constructor.returns, value, path, refs);
+    case 'Capitalize':
+    case 'Lowercase':
+    case 'Uppercase':
+    case 'Uncapitalize':
+      return collectSchemaIssues(resolveStringActionSchema(schema), value, path, refs);
+    case 'Parameter':
+      return collectSchemaIssues((schema as TParameterSchema).equals, value, path, refs);
+    case 'Generic':
+      return collectSchemaIssues((schema as TGenericSchema).expression, value, path, refs);
+    case 'Infer':
+      return collectSchemaIssues((schema as TInferSchema).extends, value, path, refs);
+    default:
+      return undefined;
+  }
+}
+
+function collectReferenceIssues(
+  kind: string | undefined,
+  schema: TSchema,
+  value: unknown,
+  path: readonly string[],
+  refs: ReferenceMap,
+  collectSchemaIssues: CollectSchemaIssues,
+): SchemaIssue[] | undefined {
+  switch (kind) {
     case 'Recursive': {
       const recursiveSchema = schema as TRecursive;
       const nextRefs = new Map(refs);
@@ -114,12 +150,48 @@ export function collectAdvancedIssues(
       return collectSchemaIssues(recursiveSchema.schema, value, path, nextRefs);
     }
     case 'Ref': {
-      const refSchema = schema as TRef;
-      const target = refs.get(refSchema.name);
+      const target = refs.get((schema as TRef).name);
       return target === undefined
-        ? [createSchemaIssue(currentPath, 'UNRESOLVED_REF')]
+        ? unresolvedRefIssue(path)
         : collectSchemaIssues(target, value, path, refs);
     }
+    case 'This': {
+      const target = refs.get('#');
+      return target === undefined
+        ? unresolvedRefIssue(path)
+        : collectSchemaIssues(target, value, path, refs);
+    }
+    case 'Call': {
+      const instantiated = Instantiate({}, schema);
+      return instantiated === schema
+        ? [createSchemaIssue(schemaPath(path), 'CALL')]
+        : collectSchemaIssues(instantiated, value, path, refs);
+    }
+    case 'Cyclic': {
+      const cyclicSchema = schema as TCyclicSchema;
+      const nextRefs = new Map(refs);
+      Object.entries(cyclicSchema.$defs).forEach(([name, definition]) => {
+        nextRefs.set(name, definition);
+      });
+      const target = cyclicSchema.$defs[cyclicSchema.$ref];
+      return target === undefined ? [] : collectSchemaIssues(target, value, path, nextRefs);
+    }
+    default:
+      return undefined;
+  }
+}
+
+function collectBranchIssues(
+  kind: string | undefined,
+  schema: TSchema,
+  value: unknown,
+  path: readonly string[],
+  refs: ReferenceMap,
+  collectSchemaIssues: CollectSchemaIssues,
+): SchemaIssue[] | undefined {
+  const currentPath = schemaPath(path);
+
+  switch (kind) {
     case 'Exclude': {
       const excludeSchema = schema as TExcludeSchema;
       if (!CheckInternal(excludeSchema.left, value, refs)) {
@@ -161,29 +233,6 @@ export function collectAdvancedIssues(
         ? []
         : collectSchemaIssues(conditionalSchema.default, value, path, refs);
     }
-    case 'Capitalize':
-    case 'Lowercase':
-    case 'Uppercase':
-    case 'Uncapitalize':
-      return collectSchemaIssues(resolveStringActionSchema(schema), value, path, refs);
-    case 'Parameter':
-      return collectSchemaIssues((schema as TParameterSchema).equals, value, path, refs);
-    case 'This': {
-      const target = refs.get('#');
-      return target === undefined
-        ? [createSchemaIssue(currentPath, 'UNRESOLVED_REF')]
-        : collectSchemaIssues(target, value, path, refs);
-    }
-    case 'Generic':
-      return collectSchemaIssues((schema as TGenericSchema).expression, value, path, refs);
-    case 'Call': {
-      const instantiated = Instantiate({}, schema);
-      return instantiated === schema
-        ? [createSchemaIssue(currentPath, 'CALL')]
-        : collectSchemaIssues(instantiated, value, path, refs);
-    }
-    case 'Infer':
-      return collectSchemaIssues((schema as TInferSchema).extends, value, path, refs);
     case 'Refine': {
       const refineSchema = schema as TRefineSchema;
       const nestedIssues = collectSchemaIssues(refineSchema.item, value, path, refs);
@@ -198,30 +247,26 @@ export function collectAdvancedIssues(
       });
       return issues;
     }
-    case 'Cyclic': {
-      const cyclicSchema = schema as TCyclicSchema;
-      const nextRefs = new Map(refs);
-      Object.entries(cyclicSchema.$defs).forEach(([name, definition]) => {
-        nextRefs.set(name, definition);
-      });
-      const target = cyclicSchema.$defs[cyclicSchema.$ref];
-      return target === undefined ? [] : collectSchemaIssues(target, value, path, nextRefs);
-    }
-    case 'Decode':
-      return collectSchemaIssues((schema as TDecodeSchema).inner, value, path, refs);
-    case 'Encode':
-      return collectSchemaIssues((schema as TEncodeSchema).inner, value, path, refs);
-    case 'Awaited':
-      return collectSchemaIssues((schema as TAwaited).promise.item, value, path, refs);
-    case 'ReturnType':
-      return collectSchemaIssues((schema as TReturnType).function.returns, value, path, refs);
-    case 'InstanceType':
-      return collectSchemaIssues((schema as TInstanceType<TConstructor>).constructor.returns, value, path, refs);
-    default: {
+    default:
+      return undefined;
+  }
+}
+
+export function collectAdvancedIssues(
+  kind: string | undefined,
+  schema: TSchema,
+  value: unknown,
+  path: readonly string[],
+  refs: ReferenceMap,
+  collectSchemaIssues: CollectSchemaIssues,
+): SchemaIssue[] {
+  return collectDelegatedIssues(kind, schema, value, path, refs, collectSchemaIssues)
+    ?? collectReferenceIssues(kind, schema, value, path, refs, collectSchemaIssues)
+    ?? collectBranchIssues(kind, schema, value, path, refs, collectSchemaIssues)
+    ?? (() => {
       const customValidator = TypeRegistry.Get(kind ?? '');
       return customValidator !== undefined && !customValidator(schema, value)
-        ? [createSchemaIssue(currentPath, 'CUSTOM_TYPE', { kind: kind ?? '' })]
+        ? [createSchemaIssue(schemaPath(path), 'CUSTOM_TYPE', { kind: kind ?? '' })]
         : [];
-    }
-  }
+    })();
 }

@@ -9,6 +9,7 @@ const {
   Object,
   Record,
   String,
+  Tuple,
   Undefined,
   Void,
 } = B;
@@ -77,6 +78,14 @@ describe('compat container types', () => {
     const schema = Record(String({ pattern: '^item-' }), Number());
     expect(Check(schema, { 'item-1': 1, 'item-2': 2 })).toBe(true);
     expect(Check(schema, { other: 1 })).toBe(false);
+  });
+
+  test('Tuple respects additionalItems', () => {
+    const closedTuple = Tuple([String(), Number()]);
+    const openTuple = Tuple([String(), Number()], { additionalItems: true });
+
+    expect(Check(closedTuple, ['Ada', 37, true])).toBe(false);
+    expect(Check(openTuple, ['Ada', 37, true])).toBe(true);
   });
 
   test('Object nested properties', () => {

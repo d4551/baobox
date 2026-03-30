@@ -1,5 +1,7 @@
 import type { StaticParse, TSchema } from '../type/schema.js';
 
+const NOT_HANDLED = Symbol('convert.not-handled');
+
 function isBigIntText(value: string): boolean {
   const normalized = value.trim();
   if (normalized.length === 0) {
@@ -24,8 +26,7 @@ export function Convert<T extends TSchema>(schema: T, value: unknown): StaticPar
   return ConvertInternal(schema, value, new Map()) as StaticParse<T>;
 }
 
-function ConvertInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
-  const s = schema as Record<string, unknown>;
+function convertPrimitiveValue(s: Record<string, unknown>, value: unknown): unknown | typeof NOT_HANDLED {
   const kind = s['~kind'] as string | undefined;
 
   switch (kind) {
@@ -83,11 +84,17 @@ function ConvertInternal(schema: TSchema, value: unknown, refs: Map<string, TSch
       }
       return value;
     }
-    case 'Null': {
-      if (value === null) return value;
-      if (value === 'null' || value === undefined) return null;
-      return value;
-    }
+    case 'Null':
+      return value === null ? value : value === 'null' || value === undefined ? null : value;
+    default:
+      return NOT_HANDLED;
+  }
+}
+
+function convertStructuredValue(s: Record<string, unknown>, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  const kind = s['~kind'] as string | undefined;
+
+  switch (kind) {
     case 'Object': {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
       const result: Record<string, unknown> = {};
@@ -95,28 +102,31 @@ function ConvertInternal(schema: TSchema, value: unknown, refs: Map<string, TSch
       const obj = value as Record<string, unknown>;
       for (const [key, val] of Object.entries(obj)) {
         const propSchema = props[key];
-        if (propSchema) {
-          result[key] = ConvertInternal(propSchema, val, refs);
-        } else {
-          result[key] = val;
-        }
+        result[key] = propSchema ? ConvertInternal(propSchema, val, refs) : val;
       }
       return result;
     }
     case 'Array': {
       if (!Array.isArray(value)) return value;
       const itemSchema = s['items'] as TSchema;
-      return value.map(item => ConvertInternal(itemSchema, item, refs));
+      return value.map((item) => ConvertInternal(itemSchema, item, refs));
     }
     case 'Tuple': {
       if (!Array.isArray(value)) return value;
       const items = s['items'] as TSchema[];
       return value.map((item, i) => items[i] ? ConvertInternal(items[i], item, refs) : item);
     }
-    case 'Optional': {
-      if (value === undefined) return value;
-      return ConvertInternal(s['item'] as TSchema, value, refs);
-    }
+    default:
+      return NOT_HANDLED;
+  }
+}
+
+function convertCompositeValue(s: Record<string, unknown>, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  const kind = s['~kind'] as string | undefined;
+
+  switch (kind) {
+    case 'Optional':
+      return value === undefined ? value : ConvertInternal(s['item'] as TSchema, value, refs);
     case 'Readonly':
       return ConvertInternal(s['item'] as TSchema, value, refs);
     case 'Union': {
@@ -148,6 +158,20 @@ function ConvertInternal(schema: TSchema, value: unknown, refs: Map<string, TSch
     case 'Encode':
       return ConvertInternal(s['inner'] as TSchema, value, refs);
     default:
-      return value;
+      return NOT_HANDLED;
   }
+}
+
+function ConvertInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
+  const s = schema as Record<string, unknown>;
+  const primitive = convertPrimitiveValue(s, value);
+  if (primitive !== NOT_HANDLED) {
+    return primitive;
+  }
+  const structured = convertStructuredValue(s, value, refs);
+  if (structured !== NOT_HANDLED) {
+    return structured;
+  }
+  const composite = convertCompositeValue(s, value, refs);
+  return composite !== NOT_HANDLED ? composite : value;
 }

@@ -9,25 +9,20 @@ import {
 } from './core-keywords.js';
 import { IsObject, IsSchema, type SchemaContext, type XSchema } from './shared.js';
 
-export function CheckSchemaValue(context: SchemaContext, schema: XSchema, value: unknown, root: XSchema = schema): boolean {
-  if (typeof schema === 'boolean') {
-    return schema;
+function resolveReferencedSchema(context: SchemaContext, schema: XSchema, root: XSchema): XSchema | undefined {
+  const schemaRecord = schema as Record<string, unknown>;
+  const refKeys = ['$ref', '$recursiveRef', '$dynamicRef'] as const;
+  for (const key of refKeys) {
+    const value = schemaRecord[key];
+    const ref = typeof value === 'string' ? value : undefined;
+    if (ref !== undefined) {
+      return context[ref] ?? Ref(root, ref);
+    }
   }
-  const ref = typeof schema['$ref'] === 'string' ? schema['$ref'] : undefined;
-  if (ref !== undefined) {
-    const resolved = context[ref] ?? Ref(root, ref);
-    return resolved !== undefined && CheckSchemaValue(context, resolved, value, root);
-  }
-  const recursiveRef = typeof schema['$recursiveRef'] === 'string' ? schema['$recursiveRef'] : undefined;
-  if (recursiveRef !== undefined) {
-    const resolved = context[recursiveRef] ?? Ref(root, recursiveRef);
-    return resolved !== undefined && CheckSchemaValue(context, resolved, value, root);
-  }
-  const dynamicRef = typeof schema['$dynamicRef'] === 'string' ? schema['$dynamicRef'] : undefined;
-  if (dynamicRef !== undefined) {
-    const resolved = context[dynamicRef] ?? Ref(root, dynamicRef);
-    return resolved !== undefined && CheckSchemaValue(context, resolved, value, root);
-  }
+  return undefined;
+}
+
+function checkCoreKeywords(context: SchemaContext, schema: Exclude<XSchema, boolean>, value: unknown, root: XSchema): boolean {
   if ('const' in schema && !Object.is(schema['const'], value)) {
     return false;
   }
@@ -44,9 +39,10 @@ export function CheckSchemaValue(context: SchemaContext, schema: XSchema, value:
   if (!CheckArrayKeywords(CheckSchemaValue, context, schema, value, root) || !CheckObjectKeywords(CheckSchemaValue, context, schema, value, root)) {
     return false;
   }
-  if (!CheckDependentKeywords(CheckSchemaValue, context, schema, value, root)) {
-    return false;
-  }
+  return CheckDependentKeywords(CheckSchemaValue, context, schema, value, root);
+}
+
+function checkCompositionKeywords(context: SchemaContext, schema: Exclude<XSchema, boolean>, value: unknown, root: XSchema): boolean {
   const allOf = Array.isArray(schema['allOf']) ? schema['allOf'] : undefined;
   if (allOf !== undefined && !allOf.every((entry) => IsSchema(entry) && CheckSchemaValue(context, entry, value, root))) {
     return false;
@@ -62,6 +58,10 @@ export function CheckSchemaValue(context: SchemaContext, schema: XSchema, value:
       return false;
     }
   }
+  return true;
+}
+
+function checkConditionalKeywords(context: SchemaContext, schema: Exclude<XSchema, boolean>, value: unknown, root: XSchema): boolean {
   const notSchema = IsSchema(schema['not']) ? schema['not'] : undefined;
   if (notSchema !== undefined && CheckSchemaValue(context, notSchema, value, root)) {
     return false;
@@ -78,6 +78,10 @@ export function CheckSchemaValue(context: SchemaContext, schema: XSchema, value:
       return CheckSchemaValue(context, elseSchema, value, root);
     }
   }
+  return true;
+}
+
+function checkExtensionKeywords(context: SchemaContext, schema: Exclude<XSchema, boolean>, value: unknown, root: XSchema): boolean {
   const guard = IsObject(schema['~guard']) ? schema['~guard'] : undefined;
   if (guard !== undefined && typeof guard['check'] === 'function' && !guard['check'](value)) {
     return false;
@@ -87,4 +91,20 @@ export function CheckSchemaValue(context: SchemaContext, schema: XSchema, value:
     return false;
   }
   return true;
+}
+
+export function CheckSchemaValue(context: SchemaContext, schema: XSchema, value: unknown, root: XSchema = schema): boolean {
+  if (typeof schema === 'boolean') {
+    return schema;
+  }
+
+  const resolved = resolveReferencedSchema(context, schema, root);
+  if (resolved !== undefined) {
+    return CheckSchemaValue(context, resolved, value, root);
+  }
+
+  return checkCoreKeywords(context, schema, value, root)
+    && checkCompositionKeywords(context, schema, value, root)
+    && checkConditionalKeywords(context, schema, value, root)
+    && checkExtensionKeywords(context, schema, value, root);
 }

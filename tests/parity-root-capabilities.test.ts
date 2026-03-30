@@ -14,8 +14,11 @@ describe('root capability helpers', () => {
   });
 
   it('encodes and decodes simple template literal patterns', () => {
-    const encoded = Type.TemplateLiteralFromString('user-${number}') as Type.TSchema & { patterns: string[] };
-    expect(encoded['~kind']).toBe('TemplateLiteral');
+    const encoded = Type.TemplateLiteralFromString('user-${number}');
+    expect(Type.IsTemplateLiteral(encoded)).toBe(true);
+    if (!Type.IsTemplateLiteral(encoded)) {
+      throw new Error('Expected TemplateLiteral schema');
+    }
     expect(encoded.patterns[0]).toContain(Type.NumberPattern);
 
     const decoded = Type.TemplateLiteralDecode(`^${Type.IntegerPattern}$`);

@@ -5,6 +5,23 @@ import {
   isUint8ArrayBase64String,
   isUint8ArrayWithinBounds,
 } from '../shared/bytes.js';
+import {
+  schemaBooleanField,
+  schemaBooleanOrSchemaField,
+  schemaItem,
+  schemaItemOrInner,
+  schemaKind,
+  schemaNumberField,
+  schemaOptionalKeys,
+  schemaPatternProperties,
+  schemaProperties,
+  schemaRequiredKeys,
+  schemaSchemaField,
+  schemaSchemaListField,
+  schemaStringField,
+  schemaUnknownField,
+  schemaVariants,
+} from '../shared/schema-access.js';
 
 type FastCheck = (value: unknown) => boolean;
 type FastStrategy = 'bun-native' | 'bun-native-const' | 'bun-ffi';
@@ -26,19 +43,17 @@ function mergeStrategy(...strategies: FastStrategy[]): FastStrategy {
 }
 
 function containsBinaryPath(schema: TSchema): boolean {
-  const current = schema as TSchema & Record<string, unknown>;
-  const kind = current['~kind'];
-  switch (kind) {
+  switch (schemaKind(schema)) {
     case 'Uint8Array':
       return true;
     case 'String':
-      return current.format === 'base64' || current.format === 'uint8array';
+      return schemaStringField(schema, 'format') === 'base64' || schemaStringField(schema, 'format') === 'uint8array';
     case 'Array':
-      return containsBinaryPath(current.items as TSchema);
+      return containsBinaryPath(schemaSchemaField(schema, 'items') ?? schemaItem(schema) ?? schema);
     case 'Tuple':
-      return (current.items as TSchema[]).some(containsBinaryPath);
+      return schemaSchemaListField(schema, 'items').some(containsBinaryPath);
     case 'Object':
-      return Object.values(current.properties as Record<string, TSchema>).some(containsBinaryPath);
+      return Object.values(schemaProperties(schema)).some(containsBinaryPath);
     case 'Optional':
     case 'Readonly':
     case 'Immutable':
@@ -46,33 +61,31 @@ function containsBinaryPath(schema: TSchema): boolean {
     case 'Decode':
     case 'Encode':
     case 'Refine':
-      return containsBinaryPath(((current.item ?? current.inner) as TSchema));
+      return containsBinaryPath(schemaItemOrInner(schema) ?? schema);
     case 'Union':
     case 'Intersect':
-      return (current.variants as TSchema[]).some(containsBinaryPath);
+      return schemaVariants(schema).some(containsBinaryPath);
     default:
       return false;
   }
 }
 
-function compilePlan(schema: TSchema): BunFastPlan | null {
-  const current = schema as TSchema & Record<string, unknown>;
-  const kind = current['~kind'];
-
-  switch (kind) {
+function compilePrimitivePlan(schema: TSchema): BunFastPlan | null {
+  const current = schemaUnknownField(schema, '~kind');
+  switch (typeof current === 'string' ? current : undefined) {
     case 'String':
       return {
-        fn: (value) => typeof value === 'string' && checkStringConstraints(current, value),
+        fn: (value) => typeof value === 'string' && checkStringConstraints(schema as TSchema & Record<string, unknown>, value),
         strategy: 'bun-native',
       };
     case 'Number':
       return {
-        fn: (value) => typeof value === 'number' && Number.isFinite(value) && checkNumberConstraints(current, value),
+        fn: (value) => typeof value === 'number' && Number.isFinite(value) && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value),
         strategy: 'bun-native',
       };
     case 'Integer':
       return {
-        fn: (value) => typeof value === 'number' && Number.isInteger(value) && checkNumberConstraints(current, value),
+        fn: (value) => typeof value === 'number' && Number.isInteger(value) && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value),
         strategy: 'bun-native',
       };
     case 'Boolean':
@@ -80,7 +93,7 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
     case 'Null':
       return { fn: (value) => value === null, strategy: 'bun-native' };
     case 'Literal':
-      return { fn: (value) => value === current.const, strategy: 'bun-native' };
+      return { fn: (value) => value === schemaUnknownField(schema, 'const'), strategy: 'bun-native' };
     case 'Unknown':
     case 'Any':
     case 'Unsafe':
@@ -88,16 +101,26 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
     case 'Never':
       return { fn: () => false, strategy: 'bun-native' };
     case 'Uint8Array': {
-      const expected = current.constBytes as Uint8Array | undefined;
+      const expected = schemaUnknownField(schema, 'constBytes');
+      const constBytes = expected instanceof Uint8Array ? expected : undefined;
+      const minByteLength = typeof schemaUnknownField(schema, 'minByteLength') === 'number' ? schemaUnknownField(schema, 'minByteLength') as number : undefined;
+      const maxByteLength = typeof schemaUnknownField(schema, 'maxByteLength') === 'number' ? schemaUnknownField(schema, 'maxByteLength') as number : undefined;
       return {
         fn: (value) => value instanceof Uint8Array
-          && isUint8ArrayWithinBounds(value, current.minByteLength as number | undefined, current.maxByteLength as number | undefined)
-          && (expected === undefined || areUint8ArraysEqual(value, expected)),
-        strategy: expected === undefined ? 'bun-native' : 'bun-ffi',
+          && isUint8ArrayWithinBounds(value, minByteLength, maxByteLength)
+          && (constBytes === undefined || areUint8ArraysEqual(value, constBytes)),
+        strategy: constBytes === undefined ? 'bun-native' : 'bun-ffi',
       };
     }
+    default:
+      return null;
+  }
+}
+
+function compileCollectionPlan(schema: TSchema): BunFastPlan | null {
+  switch (schemaKind(schema)) {
     case 'Array': {
-      const itemPlan = compilePlan(current.items as TSchema);
+      const itemPlan = compilePlan(schemaItem(schema) ?? schema);
       if (itemPlan === null) return null;
       return {
         fn: (value) => Array.isArray(value) && value.every(itemPlan.fn),
@@ -105,26 +128,37 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
       };
     }
     case 'Tuple': {
-      const itemPlans = (current.items as TSchema[]).map(compilePlan);
+      const itemPlans = schemaSchemaListField(schema, 'items').map(compilePlan);
       if (itemPlans.some((plan) => plan === null)) return null;
       const tuplePlans = itemPlans as BunFastPlan[];
+      const minItems = schemaNumberField(schema, 'minItems');
+      const maxItems = schemaNumberField(schema, 'maxItems');
+      const additionalItems = schemaBooleanField(schema, 'additionalItems');
       return {
         fn: (value) => Array.isArray(value)
-          && value.length === tuplePlans.length
+          && (minItems === undefined || value.length >= minItems)
+          && (maxItems === undefined || value.length <= maxItems)
+          && value.length >= tuplePlans.length
+          && (additionalItems === true || value.length === tuplePlans.length)
           && tuplePlans.every((plan, index) => plan.fn(value[index])),
         strategy: mergeStrategy(...tuplePlans.map((plan) => plan.strategy)),
       };
     }
     case 'Object': {
-      if (current.patternProperties !== undefined || typeof current.additionalProperties === 'object') {
+      const additionalProperties = schemaBooleanOrSchemaField(schema, 'additionalProperties');
+      if (Object.keys(schemaPatternProperties(schema)).length > 0 || typeof additionalProperties === 'object') {
         return null;
       }
-      const propertyEntries = Object.entries(current.properties as Record<string, TSchema>)
+      const properties = schemaProperties(schema);
+      if (Object.keys(schemaProperties(schema)).length === 0 && schemaUnknownField(schema, 'properties') === undefined) {
+        return null;
+      }
+      const propertyEntries = Object.entries(properties)
         .map(([key, propertySchema]) => [key, compilePlan(propertySchema)] as const);
       if (propertyEntries.some(([, plan]) => plan === null)) return null;
       const propertyPlans = new Map(propertyEntries as Array<readonly [string, BunFastPlan]>);
-      const required = new Set((current.required as string[] | undefined) ?? Object.keys(current.properties as Record<string, TSchema>));
-      const optional = new Set((current.optional as string[] | undefined) ?? []);
+      const required = new Set(schemaRequiredKeys(schema).length > 0 ? schemaRequiredKeys(schema) : Object.keys(properties));
+      const optional = new Set(schemaOptionalKeys(schema));
       return {
         fn: (value) => {
           if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
@@ -135,7 +169,7 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
           for (const [key, propertyValue] of Object.entries(objectValue)) {
             const propertyPlan = propertyPlans.get(key);
             if (propertyPlan === undefined) {
-              if (current.additionalProperties === false) return false;
+              if (additionalProperties === false) return false;
               continue;
             }
             if (!propertyPlan.fn(propertyValue)) return false;
@@ -146,7 +180,7 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
       };
     }
     case 'Union': {
-      const variantPlans = (current.variants as TSchema[]).map(compilePlan);
+      const variantPlans = schemaVariants(schema).map(compilePlan);
       if (variantPlans.some((plan) => plan === null)) return null;
       const plans = variantPlans as BunFastPlan[];
       return {
@@ -155,7 +189,7 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
       };
     }
     case 'Intersect': {
-      const variantPlans = (current.variants as TSchema[]).map(compilePlan);
+      const variantPlans = schemaVariants(schema).map(compilePlan);
       if (variantPlans.some((plan) => plan === null)) return null;
       const plans = variantPlans as BunFastPlan[];
       return {
@@ -163,22 +197,33 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
         strategy: mergeStrategy(...plans.map((plan) => plan.strategy)),
       };
     }
+    default:
+      return null;
+  }
+}
+
+function compileWrapperPlan(schema: TSchema): BunFastPlan | null {
+  switch (schemaKind(schema)) {
     case 'Optional':
     case 'Readonly':
     case 'Immutable':
     case 'Codec':
     case 'Decode':
     case 'Encode': {
-      const innerPlan = compilePlan((current.item ?? current.inner) as TSchema);
+      const innerPlan = compilePlan(schemaItemOrInner(schema) ?? schema);
       if (innerPlan === null) return null;
       return {
-        fn: (value) => kind === 'Optional' && value === undefined ? true : innerPlan.fn(value),
+        fn: (value) => schemaKind(schema) === 'Optional' && value === undefined ? true : innerPlan.fn(value),
         strategy: innerPlan.strategy,
       };
     }
     case 'Refine': {
-      if (current['~uint8arrayCodec'] === true) {
-        const constBase64 = current.constBase64 as string | undefined;
+      if (schemaUnknownField(schema, '~uint8arrayCodec') === true) {
+        const minByteLength = typeof schemaUnknownField(schema, 'minByteLength') === 'number' ? schemaUnknownField(schema, 'minByteLength') as number : undefined;
+        const maxByteLength = typeof schemaUnknownField(schema, 'maxByteLength') === 'number' ? schemaUnknownField(schema, 'maxByteLength') as number : undefined;
+        const constBytes = schemaUnknownField(schema, 'constBytes');
+        const normalizedBytes = constBytes instanceof Uint8Array ? constBytes : undefined;
+        const constBase64 = schemaStringField(schema, 'constBase64');
         if (constBase64 !== undefined) {
           return {
             fn: (value) => typeof value === 'string' && value === constBase64,
@@ -188,25 +233,35 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
         return {
           fn: (value) => isUint8ArrayBase64String(
             value,
-            current.minByteLength as number | undefined,
-            current.maxByteLength as number | undefined,
-            current.constBytes as Uint8Array | undefined,
+            minByteLength,
+            maxByteLength,
+            normalizedBytes,
             constBase64,
           ),
           strategy: 'bun-native',
         };
       }
-      const itemPlan = compilePlan(current.item as TSchema);
-      const refinements = current['~refine'] as Array<{ refine: (value: unknown) => boolean }> | undefined;
+      const itemPlan = compilePlan(schemaItem(schema) ?? schema);
+      const refinementsValue = schemaUnknownField(schema, '~refine');
+      const refinements = Array.isArray(refinementsValue)
+        ? refinementsValue.filter((entry): entry is { refine: (value: unknown) => boolean } =>
+            typeof entry === 'object' && entry !== null && typeof entry.refine === 'function')
+        : undefined;
       if (itemPlan === null || refinements === undefined) return null;
       return {
         fn: (value) => itemPlan.fn(value) && refinements.every((entry) => entry.refine(value)),
-        strategy: current.constBytes instanceof Uint8Array ? 'bun-ffi' : itemPlan.strategy,
+        strategy: schemaUnknownField(schema, 'constBytes') instanceof Uint8Array ? 'bun-ffi' : itemPlan.strategy,
       };
     }
     default:
       return null;
   }
+}
+
+function compilePlan(schema: TSchema): BunFastPlan | null {
+  return compilePrimitivePlan(schema)
+    ?? compileCollectionPlan(schema)
+    ?? compileWrapperPlan(schema);
 }
 
 export function compileBunFastPath(schema: TSchema): BunFastPathResult | null {

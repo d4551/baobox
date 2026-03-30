@@ -36,7 +36,7 @@ validator.Check({ id: 'usr_1', email: 'ada@example.com', age: 37 })
 ## Choose A Workflow
 
 - `Check(schema, value)` returns a boolean. Use it when you only need pass/fail validation.
-- `TryParse(schema, value)` runs the full normalization pipeline and returns `{ success, value | errors }`. Use it when try/catch is banned or undesirable.
+- `TryParse(schema, value)` runs the full normalization pipeline and returns `{ success, value | errors }`. Use it when the caller needs a non-throwing normalization path.
 - `Parse(schema, value)` runs the full value pipeline: clone, default, convert, clean, then validate. It throws `ParseError` when validation still fails.
 - `Compile(schema)` creates a reusable validator for hot paths. `Validator.Errors()` uses the same localized error messages as `Value.Errors()`.
 
@@ -85,6 +85,13 @@ Errors(String(), 42)
 - The `compile`, `error`, `format`, `guard`, `system`, and `value` subpaths are parity-tested against the installed `typebox` package.
 - `baobox/schema` intentionally combines a `typebox/schema`-style raw schema runtime with baobox's schema emitter helpers.
 
+## Bun-Native Fast Paths
+
+- `Compile()` can specialize hot validation paths for Bun when the schema shape makes that safe.
+- `Uint8ArrayCodec()` adds a Bun-first base64 codec surface for binary payloads and supports constant-payload specialization in compiled validators.
+- Raw `Uint8Array` constant-byte comparisons can use a Bun `bun:ffi` memcmp fast path when the platform supports it.
+- Bun documents `bun:ffi` as experimental, so baobox keeps the fast path narrow and falls back to non-FFI compiled validation whenever the schema does not require native byte comparison.
+
 ## Repository Scripts
 
 ```bash
@@ -93,6 +100,8 @@ bun run typecheck
 bun test
 bun run bench
 ```
+
+`bun run bench` prints comparative validation and codec throughput against the installed `typebox` package so benchmark output stays tied to the current upstream implementation.
 
 ## License
 
