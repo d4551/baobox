@@ -83,7 +83,7 @@ The root namespace includes:
 
 - Type builders: `String`, `Number`, `Integer`, `Boolean`, `Null`, `Literal`, `BigInt`, `Date`, `Array`, `Object`, `Tuple`, `Record`, `Union`, `Intersect`, `Function`, `Constructor`, `Promise`, `Iterator`, `AsyncIterator`, `TemplateLiteral`, `Enum`, `Ref`, `Recursive`
 - Type actions and transforms: `Awaited`, `Exclude`, `Extract`, `Index`, `Interface`, `KeyOf`, `Mapped`, `NonNullable`, `Omit`, `Options`, `Parameters`, `Partial`, `Pick`, `ReadonlyType`, `Required`, `ReturnType`, `Capitalize`, `Lowercase`, `Uppercase`, `Uncapitalize`
-- Extensions: `Codec`, `DecodeBuilder`, `EncodeBuilder`, `Immutable`, `Refine`, `Base`, `Call`, `Cyclic`, `Generic`, `Infer`
+- Extensions: `Codec`, `DecodeBuilder`, `EncodeBuilder`, `Immutable`, `Refine`, `Base`, `Call`, `Cyclic`, `Generic`, `Infer`, `Uint8ArrayCodec`
 - Value operations: `Check`, `Assert`, `Parse`, `Repair`, `Convert`, `Clean`, `Create`, `Default`, `Clone`, `Errors`, `Diff`, `Patch`, `Equal`, `Hash`, `Mutate`, `Pipeline`, `Pointer`, `HasCodec`
 - Compile/runtime helpers: `Code`, `Compile`, `Validator`, `Script`, `ScriptWithDefinitions`
 - Root parity helpers: deferred helpers, instantiate helpers, option extractors, record/template helpers, compare/broaden/narrow helpers, cyclic helpers, and guard predicates that mirror the upstream TypeBox root helper families
@@ -145,6 +145,13 @@ Baobox is designed around Bun-native workflows:
 - TypeScript source as the primary authoring format
 - ESM output with generated declaration files for published consumers
 
+## Binary codec and fast validation path
+
+- `Uint8ArrayCodec()` provides a built-in base64 `<-> Uint8Array` codec for encoded JSON payloads and decoded runtime byte values.
+- `Compile()` now includes a Bun-native binary fast path for `Uint8Array` and `Uint8ArrayCodec` schema graphs.
+- When a byte schema provides `constBytes`, the binary fast path uses Bun FFI `memcmp` pointer comparison for exact byte matching.
+- The generic JIT compiler remains in place for the broader schema surface and now includes string format checks in generated validators.
+
 ## Project structure
 
 ```text
@@ -185,6 +192,13 @@ bun test
 bun run bench
 ```
 
+`bun run bench` executes the comparative benchmark suite against the installed `typebox` package and reports:
+
+- baobox `Check` vs `typebox/value` `Check`
+- baobox `Compile` vs `typebox/compile`
+- baobox codec `Decode`/`Encode` vs upstream codec `Decode`/`Encode`
+- strategy notes showing when the Bun-native binary fast path was used
+
 ## Validation policy
 
 The repo is maintained under strict implementation constraints:
@@ -211,6 +225,7 @@ The repo is maintained under strict implementation constraints:
 
 - Root parity work is focused on maintaining full upstream coverage while preserving baobox extensions.
 - Subpath runtime parity is validated against the installed `typebox` package.
+- The Bun-native binary fast path, built-in `Uint8ArrayCodec`, and comparative benchmark suite are implemented requirements.
 - README and tests describe the current package surface, not an older reduced API.
 
 ## License

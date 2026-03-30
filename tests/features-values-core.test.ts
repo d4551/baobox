@@ -103,6 +103,22 @@ describe('DateFormat (renamed)', () => {
   });
 });
 
+describe('Uint8ArrayCodec', () => {
+  it('encodes and decodes base64 byte payloads', () => {
+    const schema = B.Uint8ArrayCodec({ minByteLength: 2, maxByteLength: 4 });
+    const encoded = Encode(schema, new Uint8Array([1, 2, 3])) as string;
+    expect(B.Check(schema, encoded)).toBe(true);
+    const decoded = Decode(schema, encoded);
+    expect(decoded).toBeInstanceOf(Uint8Array);
+    expect(Array.from(decoded as Uint8Array)).toEqual([1, 2, 3]);
+  });
+
+  it('enforces decoded byte-length constraints on encoded strings', () => {
+    const schema = B.Uint8ArrayCodec({ minByteLength: 2 });
+    expect(B.Check(schema, 'AQ==')).toBe(false);
+  });
+});
+
 // -------------------------------------------------------------------------
 // Phase 3: Value Operations
 // -------------------------------------------------------------------------
@@ -215,4 +231,3 @@ describe('Value.Convert', () => {
     expect(result.count).toBe(5);
   });
 });
-

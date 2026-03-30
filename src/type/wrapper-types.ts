@@ -19,6 +19,7 @@ export interface TUint8Array extends TSchema {
   '~kind': 'Uint8Array';
   minByteLength?: number;
   maxByteLength?: number;
+  constBytes?: Uint8Array;
   title?: string;
   description?: string;
 }

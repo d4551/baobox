@@ -7,6 +7,7 @@ import {
   isPromiseLike,
   TypeSystemPolicy,
 } from '../shared/utils.js';
+import { areUint8ArraysEqual, isUint8ArrayWithinBounds } from '../shared/bytes.js';
 
 export function checkPrimitiveKind(kind: string | undefined, schema: TSchema, value: unknown): boolean | undefined {
   switch (kind) {
@@ -71,11 +72,10 @@ export function checkPrimitiveKind(kind: string | undefined, schema: TSchema, va
       return new RegExp(current.patterns.join('|')).test(value);
     }
     case 'Uint8Array': {
-      const current = schema as TSchema & { minByteLength?: number; maxByteLength?: number };
+      const current = schema as TSchema & { minByteLength?: number; maxByteLength?: number; constBytes?: Uint8Array };
       if (!(value instanceof globalThis.Uint8Array)) return false;
-      if (current.minByteLength !== undefined && value.byteLength < current.minByteLength) return false;
-      if (current.maxByteLength !== undefined && value.byteLength > current.maxByteLength) return false;
-      return true;
+      if (!isUint8ArrayWithinBounds(value, current.minByteLength, current.maxByteLength)) return false;
+      return current.constBytes === undefined || areUint8ArraysEqual(value, current.constBytes);
     }
     case 'RegExpInstance':
       return value instanceof globalThis.RegExp;

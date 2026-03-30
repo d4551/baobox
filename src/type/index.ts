@@ -234,3 +234,4 @@ export * from './root-template.js';
 export * from './root-cyclic.js';
 export * from './root-instantiate.js';
 export { RecordPattern as RecordKeyAsPattern } from './root-template.js';
+export { Uint8ArrayCodec } from './uint8array-codec.js';

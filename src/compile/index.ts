@@ -9,19 +9,23 @@ import { Default } from '../value/default.js';
 import { Parse, ParseError } from '../value/parse.js';
 import { Decode as ValueDecode } from '../value/decode.js';
 import { Encode as ValueEncode } from '../value/encode.js';
+import { validateFormat } from '../shared/format-validators.js';
+import { compileBunFastPath } from './bun-fast-path.js';
 
 export class Validator<T extends TSchema> {
   private readonly schema: T;
   private readonly checkFn: (value: unknown) => boolean;
   private readonly code: string;
   private readonly accelerated: boolean;
+  private readonly strategy: string;
 
   constructor(schema: T) {
     this.schema = schema;
-    const result = compileSchema(schema);
+    const result = compileBunFastPath(schema) ?? compileSchema(schema);
     this.checkFn = result.fn;
     this.code = result.code;
     this.accelerated = result.accelerated;
+    this.strategy = result.strategy;
   }
 
   Check(value: unknown): boolean {
@@ -67,6 +71,10 @@ export class Validator<T extends TSchema> {
   IsAccelerated(): boolean {
     return this.accelerated;
   }
+
+  Strategy(): string {
+    return this.strategy;
+  }
 }
 
 export function Compile<T extends TSchema>(schema: T): Validator<T> {
@@ -81,6 +89,7 @@ interface CompileResult {
   fn: (value: unknown) => boolean;
   code: string;
   accelerated: boolean;
+  strategy: string;
 }
 
 function compileSchema(schema: TSchema): CompileResult {
@@ -100,6 +109,7 @@ function compileSchema(schema: TSchema): CompileResult {
         if (s.minLength !== undefined) checks.push(`${valueExpr}.length >= ${s.minLength}`);
         if (s.maxLength !== undefined) checks.push(`${valueExpr}.length <= ${s.maxLength}`);
         if (s.pattern !== undefined) checks.push(`/${s.pattern}/.test(${valueExpr})`);
+        if (s.format !== undefined) checks.push(`__validateFormat(${valueExpr}, ${JSON.stringify(s.format)})`);
         return checks.join(' && ');
       }
       case 'Number': {
@@ -185,7 +195,11 @@ function compileSchema(schema: TSchema): CompileResult {
       case 'Function':
         return `typeof ${valueExpr} === 'function'`;
       case 'Uint8Array':
-        return `${valueExpr} instanceof Uint8Array`;
+        return [
+          `${valueExpr} instanceof Uint8Array`,
+          s.minByteLength !== undefined ? `${valueExpr}.byteLength >= ${s.minByteLength}` : 'true',
+          s.maxByteLength !== undefined ? `${valueExpr}.byteLength <= ${s.maxByteLength}` : 'true',
+        ].join(' && ');
       default:
         return `__check(${valueExpr})`;
     }
@@ -193,17 +207,22 @@ function compileSchema(schema: TSchema): CompileResult {
 
   const bodyExpr = emit(schema, 'value');
   const codeStr = `return ${bodyExpr};`;
-  const fullCode = `(function(value, __check) { ${codeStr} })`;
+  const fullCode = `(function(value, __check, __validateFormat) { ${codeStr} })`;
 
   const fallbackCheck = (value: unknown) => Check(schema, value);
 
   // SAFETY: new Function is used intentionally for JIT compilation of validation code
-  const compiledFn = new Function('value', '__check', codeStr) as (value: unknown, __check: (v: unknown) => boolean) => boolean;
+  const compiledFn = new Function('value', '__check', '__validateFormat', codeStr) as (
+    value: unknown,
+    __check: (v: unknown) => boolean,
+    __validateFormat: (value: string, format: string) => boolean,
+  ) => boolean;
 
   return {
-    fn: (value: unknown) => compiledFn(value, fallbackCheck),
+    fn: (value: unknown) => compiledFn(value, fallbackCheck, validateFormat),
     code: fullCode,
     accelerated: true,
+    strategy: 'jit',
   };
 }
 

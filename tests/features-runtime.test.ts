@@ -71,6 +71,19 @@ describe('Compile', () => {
     expect(v.Check('a')).toBe(true);
     expect(v.Check('d')).toBe(false);
   });
+
+  it('uses the Bun binary fast path for Uint8Array codecs', () => {
+    const schema = B.Uint8ArrayCodec({
+      minByteLength: 3,
+      maxByteLength: 3,
+      constBytes: new Uint8Array([1, 2, 3]),
+    });
+    const validator = Compile(schema);
+    expect(validator.IsAccelerated()).toBe(true);
+    expect(validator.Strategy()).toBe('bun-ffi');
+    expect(validator.Check(Encode(schema, new Uint8Array([1, 2, 3])))).toBe(true);
+    expect(validator.Check(Encode(schema, new Uint8Array([9, 9, 9])))).toBe(false);
+  });
 });
 
 // -------------------------------------------------------------------------
