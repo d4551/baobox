@@ -4,6 +4,10 @@ function isKind<T extends TSchema>(schema: TSchema, kind: string): schema is T {
   return (schema as { '~kind'?: string })['~kind'] === kind;
 }
 
+function hasFlag(schema: TSchema, flag: string): boolean {
+  return typeof schema === 'object' && schema !== null && flag in schema;
+}
+
 export function IsSchema(schema: unknown): schema is TSchema {
   return typeof schema === 'object' && schema !== null && '~kind' in schema;
 }
@@ -31,8 +35,8 @@ export function IsTuple(schema: TSchema): boolean { return isKind(schema, 'Tuple
 export function IsRecord(schema: TSchema): boolean { return isKind(schema, 'Record'); }
 export function IsUnion(schema: TSchema): boolean { return isKind(schema, 'Union'); }
 export function IsIntersect(schema: TSchema): boolean { return isKind(schema, 'Intersect'); }
-export function IsOptional(schema: TSchema): boolean { return isKind(schema, 'Optional'); }
-export function IsReadonly(schema: TSchema): boolean { return isKind(schema, 'Readonly'); }
+export function IsOptional(schema: TSchema): boolean { return isKind(schema, 'Optional') || hasFlag(schema, '~optional'); }
+export function IsReadonly(schema: TSchema): boolean { return isKind(schema, 'Readonly') || hasFlag(schema, '~readonly'); }
 export function IsEnum(schema: TSchema): boolean { return isKind(schema, 'Enum'); }
 export function IsRef(schema: TSchema): boolean { return isKind(schema, 'Ref'); }
 export function IsRecursive(schema: TSchema): boolean { return isKind(schema, 'Recursive'); }
@@ -79,8 +83,8 @@ export function IsIdentifier(schema: TSchema): boolean { return isKind(schema, '
 export function IsParameter(schema: TSchema): boolean { return isKind(schema, 'Parameter'); }
 export function IsThis(schema: TSchema): boolean { return isKind(schema, 'This'); }
 export function IsCodec(schema: TSchema): boolean { return isKind(schema, 'Codec'); }
-export function IsImmutable(schema: TSchema): boolean { return isKind(schema, 'Immutable'); }
-export function IsRefine(schema: TSchema): boolean { return isKind(schema, 'Refine'); }
+export function IsImmutable(schema: TSchema): boolean { return isKind(schema, 'Immutable') || hasFlag(schema, '~immutable'); }
+export function IsRefine(schema: TSchema): boolean { return isKind(schema, 'Refine') || hasFlag(schema, '~refine'); }
 export function IsBase(schema: TSchema): boolean { return isKind(schema, 'Base'); }
 export function IsCall(schema: TSchema): boolean { return isKind(schema, 'Call'); }
 export function IsCyclic(schema: TSchema): boolean { return isKind(schema, 'Cyclic'); }

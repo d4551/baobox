@@ -93,6 +93,16 @@ export type {
   TExtends,
   TExtendsResult,
 } from './extends.js';
+export type {
+  TOptionalAddAction,
+  TOptionalRemoveAction,
+  TReadonlyAddAction,
+  TReadonlyRemoveAction,
+} from './root-constants.js';
+export type {
+  TDeferred,
+  TInterfaceDeferred,
+} from './root-deferred.js';
 
 export {
   String,
@@ -215,5 +225,12 @@ export {
 } from './extends.js';
 
 export * from './guards.js';
-
 export * from './kind.js';
+export * from './root-constants.js';
+export * from './root-deferred.js';
+export * from './root-guards.js';
+export * from './root-helpers.js';
+export * from './root-template.js';
+export * from './root-cyclic.js';
+export * from './root-instantiate.js';
+export { RecordPattern as RecordKeyAsPattern } from './root-template.js';

@@ -68,7 +68,9 @@ export function Immutable<Type extends TSchema>(type: Type): TImmutable<Type> {
 }
 
 export function IsImmutable(value: unknown): value is TImmutable {
-  return typeof value === 'object' && value !== null && (value as Record<string, unknown>)['~kind'] === 'Immutable';
+  return typeof value === 'object'
+    && value !== null
+    && ((value as Record<string, unknown>)['~kind'] === 'Immutable' || (value as Record<string, unknown>)['~immutable'] === true);
 }
 
 export type TRefineCallback<Type extends TSchema> = (value: Static<Type>) => boolean;
@@ -97,7 +99,9 @@ export function Refine<Type extends TSchema>(
 }
 
 export function IsRefine(value: unknown): value is TRefine {
-  return typeof value === 'object' && value !== null && (value as Record<string, unknown>)['~kind'] === 'Refine';
+  return typeof value === 'object'
+    && value !== null
+    && ((value as Record<string, unknown>)['~kind'] === 'Refine' || Array.isArray((value as Record<string, unknown>)['~refine']));
 }
 
 export class Base<Value = unknown> implements TSchema {

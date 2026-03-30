@@ -3,9 +3,9 @@ import { Ref } from './resolve.js';
 import { CheckSchemaValue } from './core.js';
 import { HasBoolean, HasObject, HasString, IsArray, IsObject, IsSchemaObject, Keys, type SchemaContext, type XSchema } from './shared.js';
 
-const externalState = {
+const externalState: { identifier: string; variables: unknown[] } = {
   identifier: 'external_0',
-  variables: [] as unknown[],
+  variables: [],
 };
 
 let resetCount = 1;
