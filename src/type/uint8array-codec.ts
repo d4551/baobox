@@ -2,6 +2,7 @@ import type { TString, TUint8Array } from './schema.js';
 import type { TCodec, TRefine } from './extensions.js';
 import { Codec, Refine } from './extensions.js';
 import { String } from './primitives.js';
+import { BASE64_FORMAT } from '../shared/format-constants.js';
 import {
   decodeUint8ArrayBase64,
   encodeUint8ArrayBase64,
@@ -13,12 +14,20 @@ export type TUint8ArrayCodec = TRefine<TCodec<TString, Uint8Array>> & Pick<TUint
   constBase64?: string;
 };
 
+export interface Uint8ArrayCodecOptions {
+  readonly minByteLength?: number;
+  readonly maxByteLength?: number;
+  readonly constBytes?: Uint8Array;
+  readonly title?: string;
+  readonly description?: string;
+}
+
 export function Uint8ArrayCodec(
-  options: Partial<Omit<TUint8Array, "'~kind'">> = {},
+  options: Uint8ArrayCodecOptions = {},
 ): TUint8ArrayCodec {
   const constBase64 = options.constBytes === undefined ? undefined : encodeUint8ArrayBase64(options.constBytes);
   const codec = Codec(String({
-    format: 'base64',
+    format: BASE64_FORMAT,
     ...(options.title === undefined ? {} : { title: options.title }),
     ...(options.description === undefined ? {} : { description: options.description }),
   }))

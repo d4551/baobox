@@ -29,7 +29,7 @@ export const ResultLeftInside = 'left-inside' as const;
 export const ResultRightInside = 'right-inside' as const;
 
 function schemaOptions(type: TSchema, keys: readonly string[]): Record<string, unknown> {
-  return discardKeys(type as Record<string, unknown>, keys);
+  return discardKeys(type, keys);
 }
 
 export function ArrayOptions(type: TArray): Record<string, unknown> {
@@ -134,7 +134,7 @@ export function ReadonlyRemoveAction<Type extends TSchema>(type: Type): TReadonl
 }
 
 function removeModifier<Type extends TSchema>(type: Type, key: string): Type {
-  return discardKeys(type as Record<string, unknown>, [key]) as Type;
+  return discardKeys(type, [key]) as Type;
 }
 
 export function OptionalAdd<Type extends TSchema>(type: Type): Type & { '~optional': true } {

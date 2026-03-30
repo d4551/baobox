@@ -1,6 +1,7 @@
 import type { Static } from '../type/index.js';
 import type { TSchema } from '../type/schema.js';
 import { resolveRuntimeContext, type RuntimeContext, type RuntimeContextArg } from '../shared/runtime-context.js';
+import { schemaKind } from '../shared/schema-access.js';
 import { checkCollectionKind } from './check-collections.js';
 import { checkExtensionKind } from './check-extensions.js';
 import { checkPrimitiveKind } from './check-primitives.js';
@@ -32,7 +33,7 @@ export function CheckInternal(
   context?: RuntimeContextArg,
 ): boolean {
   const runtimeContext = resolveCheckContext(context);
-  const kind = (schema as Record<string, unknown>)['~kind'] as string | undefined;
+  const kind = schemaKind(schema);
 
   const primitiveResult = checkPrimitiveKind(kind, schema, value, runtimeContext);
   if (primitiveResult !== undefined) {

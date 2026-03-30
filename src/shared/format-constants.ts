@@ -12,10 +12,50 @@ export const BASE64_RE = /^[a-zA-Z0-9+/]*={0,2}$/;
 export const HEX_RE = /^[0-9a-fA-F]+$/;
 export const HEXCLR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 export const LUHN_DIGITS_RE = /^\d{13,19}$/;
+export const JSON_POINTER_RE = /^\/(?:[^/~]|~0|~1)*?(?:\/(?:[^/~]|~0|~1)*?)*$/;
+export const RELATIVE_JSON_POINTER_RE = /^(0|[1-9]\d*)(#|(?:\/(?:[^/~]|~0|~1)*?)*)$/;
+export const URI_REFERENCE_RE = /^(?:[A-Za-z][A-Za-z\d+.-]*:|\/|\.|#|\?)/;
+export const URI_TEMPLATE_RE = /^(?:[^{}]|\{[^{}]+\})+$/;
+export const EMAIL_FORMAT = 'email';
+export const URI_FORMAT = 'uri';
+export const HOSTNAME_FORMAT = 'hostname';
+export const IP_FORMAT = 'ip';
+export const IPV4_FORMAT = 'ipv4';
+export const IPV6_FORMAT = 'ipv6';
+export const UUID_FORMAT = 'uuid';
+export const DATE_FORMAT = 'date';
+export const DATETIME_FORMAT = 'datetime';
+export const TIME_FORMAT = 'time';
+export const DURATION_FORMAT = 'duration';
+export const BASE64_FORMAT = 'base64';
+export const HEX_FORMAT = 'hex';
+export const HEX_COLOR_FORMAT = 'hexcolor';
+export const CREDIT_CARD_FORMAT = 'creditcard';
+export const REGEX_FORMAT = 'regex';
+export const UINT8ARRAY_FORMAT = 'uint8array';
+export const JSON_FORMAT = 'json';
+export const EMPTY_JSON_POINTER = '';
+export const URI_FRAGMENT_PREFIX = '#';
 
-export const KNOWN_FORMATS = new Set([
-  'email', 'uri', 'hostname', 'ip', 'ipv4', 'ipv6', 'uuid',
-  'date', 'datetime', 'time', 'duration',
-  'base64', 'hex', 'hexcolor',
-  'creditcard', 'regex', 'uint8array', 'json',
-]);
+export const KNOWN_FORMAT_NAMES = [
+  EMAIL_FORMAT,
+  URI_FORMAT,
+  HOSTNAME_FORMAT,
+  IP_FORMAT,
+  IPV4_FORMAT,
+  IPV6_FORMAT,
+  UUID_FORMAT,
+  DATE_FORMAT,
+  DATETIME_FORMAT,
+  TIME_FORMAT,
+  DURATION_FORMAT,
+  BASE64_FORMAT,
+  HEX_FORMAT,
+  HEX_COLOR_FORMAT,
+  CREDIT_CARD_FORMAT,
+  REGEX_FORMAT,
+  UINT8ARRAY_FORMAT,
+  JSON_FORMAT,
+] as const;
+
+export const KNOWN_FORMATS = new Set<string>(KNOWN_FORMAT_NAMES);

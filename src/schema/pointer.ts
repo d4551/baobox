@@ -77,8 +77,8 @@ export function Delete<T>(value: T, pointer: string): T {
   assertIndexable(parent);
   if (IsArray(parent) && isNumericIndex(index)) {
     parent.splice(Number(index), 1);
-  } else {
-    delete (parent as Record<string, unknown>)[index];
+  } else if (IsObject(parent)) {
+    delete parent[index];
   }
   return value;
 }

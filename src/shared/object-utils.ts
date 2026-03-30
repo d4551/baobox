@@ -1,4 +1,10 @@
 import type { TObject, TSchema, TString } from '../type/schema.js';
+import { isRecord } from './runtime-guards.js';
+import {
+  schemaKind,
+  schemaStringField,
+  schemaUnknownField,
+} from './schema-access.js';
 
 /** @internal Options for deriving a sub-schema from an object schema */
 export interface DeriveObjectOptions {
@@ -86,15 +92,17 @@ export function deriveIndexSchemasForEmission(
 ): TSchema[] {
   const candidates: TSchema[] = [];
   const properties = object.properties as Record<string, TSchema>;
-  const keySchemaRecord = keySchema as Record<string, unknown>;
+  const format = schemaStringField(keySchema, 'format');
+  const pattern = schemaStringField(keySchema, 'pattern');
+  const keyKind = schemaKind(keySchema);
 
   for (const [key, schema] of Object.entries(properties)) {
     const keyValidationSchema: TString = {
       '~kind': 'String',
-      ...(typeof keySchemaRecord.format === 'string' ? { format: keySchemaRecord.format } : {}),
-      ...(typeof keySchemaRecord.pattern === 'string' ? { pattern: keySchemaRecord.pattern } : {}),
+      ...(format !== undefined ? { format } : {}),
+      ...(pattern !== undefined ? { pattern } : {}),
     };
-    if (keySchemaRecord['~kind'] === 'String' ? stringMatchesKeySchema(keyValidationSchema, key) : true) {
+    if (keyKind === 'String' ? stringMatchesKeySchema(keyValidationSchema, key) : true) {
       candidates.push(schema);
     }
   }
@@ -121,27 +129,31 @@ function transformStringLiteralValue(kind: string, value: string): string {
   }
 }
 
+function isSchemaValue(value: unknown): value is TSchema {
+  return isRecord(value) && typeof value['~kind'] === 'string';
+}
+
 /** @internal Resolve casing actions to a concrete schema when possible */
 export function resolveStringActionSchema(schema: TSchema): TSchema {
-  const value = schema as Record<string, unknown>;
-  const kind = value['~kind'];
+  const kind = schemaKind(schema);
   if (kind !== 'Capitalize' && kind !== 'Lowercase' && kind !== 'Uppercase' && kind !== 'Uncapitalize') {
     return schema;
   }
-  const item = value['item'];
-  if (typeof item !== 'object' || item === null) {
+  const item = schemaUnknownField(schema, 'item');
+  if (!isSchemaValue(item)) {
     return schema;
   }
-  const target = item as Record<string, unknown>;
-  const targetKind = target['~kind'];
-  if (targetKind === 'Literal' && typeof target['const'] === 'string') {
-    return { '~kind': 'Literal', const: transformStringLiteralValue(String(kind), target['const']) } as TSchema;
+  const targetKind = schemaKind(item);
+  const targetConst = schemaUnknownField(item, 'const');
+  if (targetKind === 'Literal' && typeof targetConst === 'string') {
+    return { '~kind': 'Literal', const: transformStringLiteralValue(kind, targetConst) } as TSchema;
   }
-  if (targetKind === 'Enum' && Array.isArray(target['values']) && target['values'].every((entry) => typeof entry === 'string')) {
+  const targetValues = schemaUnknownField(item, 'values');
+  if (targetKind === 'Enum' && Array.isArray(targetValues) && targetValues.every((entry) => typeof entry === 'string')) {
     return {
       '~kind': 'Enum',
-      values: (target['values'] as string[]).map((entry) => transformStringLiteralValue(String(kind), entry)),
+      values: targetValues.map((entry) => transformStringLiteralValue(kind, entry)),
     } as TSchema;
   }
-  return item as TSchema;
+  return item;
 }

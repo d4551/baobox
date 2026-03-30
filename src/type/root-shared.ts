@@ -21,14 +21,12 @@ export function hasKind(schema: TSchema, kind: string): boolean {
 }
 
 export function discardKeys<T extends Record<string, unknown>>(
-  value: T,
+  value: T | object,
   keys: readonly string[],
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = { ...value };
-  for (const key of keys) {
-    delete result[key];
-  }
-  return result;
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => !keys.includes(key)),
+  );
 }
 
 export function mergeOptions<T extends TSchema>(schema: T, options: Record<string, unknown> = {}): T {

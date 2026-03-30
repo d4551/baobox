@@ -11,6 +11,7 @@ import {
   schemaStringField,
   schemaUnknownField,
 } from '../shared/schema-access.js';
+import { isCodecShape, isPlainRecord, recordEntries } from '../shared/runtime-guards.js';
 import { Instantiate } from '../type/instantiation.js';
 
 /** Run encode callbacks depth-first on a value */
@@ -18,22 +19,18 @@ export function Encode<T extends TSchema>(schema: T, value: unknown): StaticEnco
   return EncodeInternal(schema, value, new Map()) as StaticEncode<T>;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
 function resolveCodec(schema: TSchema): { encode: (input: unknown) => unknown } | undefined {
   const codec = schemaUnknownField(schema, 'codec');
-  return isRecord(codec) && typeof codec.encode === 'function'
-    ? codec as { encode: (input: unknown) => unknown }
+  return isCodecShape(codec) && typeof codec.encode === 'function'
+    ? { encode: codec.encode }
     : undefined;
 }
 
 function encodeObject(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
-  if (!isRecord(value) || Array.isArray(value)) return value;
+  if (!isPlainRecord(value)) return value;
   const result: Record<string, unknown> = {};
   const properties = schemaProperties(schema);
-  for (const [key, entryValue] of Object.entries(value)) {
+  for (const [key, entryValue] of recordEntries(value)) {
     const propertySchema = properties[key];
     result[key] = propertySchema ? EncodeInternal(propertySchema, entryValue, refs) : entryValue;
   }

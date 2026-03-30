@@ -26,6 +26,23 @@ import type {
   TEncode,
 } from './schema.js';
 import { ExpandTupleRest, type ExpandRestItems } from './actions.js';
+import {
+  BASE64_FORMAT,
+  CREDIT_CARD_FORMAT,
+  DATETIME_FORMAT,
+  DATE_FORMAT,
+  DURATION_FORMAT,
+  EMAIL_FORMAT,
+  HEX_COLOR_FORMAT,
+  HEX_FORMAT,
+  HOSTNAME_FORMAT,
+  IP_FORMAT,
+  JSON_FORMAT,
+  REGEX_FORMAT,
+  TIME_FORMAT,
+  URI_FORMAT,
+  UUID_FORMAT,
+} from '../shared/format-constants.js';
 
 /** Create a string schema */
 export function String(options?: Partial<Omit<TString, "'~kind'">>): TString {
@@ -97,72 +114,72 @@ export function Date(options?: Partial<Omit<TDate, "'~kind'">>): TDate {
 
 /** Create a string schema with date format (YYYY-MM-DD) */
 export function DateFormat(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'date', ...options });
+  return String({ format: DATE_FORMAT, ...options });
 }
 
 /** Create a UUID string schema */
 export function Uuid(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'uuid', ...options });
+  return String({ format: UUID_FORMAT, ...options });
 }
 
 /** Create an email string schema */
 export function Email(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'email', ...options });
+  return String({ format: EMAIL_FORMAT, ...options });
 }
 
 /** Create a URI string schema */
 export function Uri(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'uri', ...options });
+  return String({ format: URI_FORMAT, ...options });
 }
 
 /** Create a hostname string schema */
 export function Hostname(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'hostname', ...options });
+  return String({ format: HOSTNAME_FORMAT, ...options });
 }
 
 /** Create an IP address string schema (v4 or v6) */
 export function Ip(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'ip', ...options });
+  return String({ format: IP_FORMAT, ...options });
 }
 
 /** Create a base64 string schema */
 export function Base64(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'base64', ...options });
+  return String({ format: BASE64_FORMAT, ...options });
 }
 
 /** Create a hex string schema */
 export function Hex(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'hex', ...options });
+  return String({ format: HEX_FORMAT, ...options });
 }
 
 /** Create a hex colour string schema (#RGB or #RRGGBB) */
 export function HexColor(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'hexcolor', ...options });
+  return String({ format: HEX_COLOR_FORMAT, ...options });
 }
 
 /** Create a date-time string schema (ISO 8601) */
 export function DateTime(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'datetime', ...options });
+  return String({ format: DATETIME_FORMAT, ...options });
 }
 
 /** Create a time string schema (HH:MM:SS) */
 export function Time(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'time', ...options });
+  return String({ format: TIME_FORMAT, ...options });
 }
 
 /** Create a duration string schema (ISO 8601) */
 export function Duration(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'duration', ...options });
+  return String({ format: DURATION_FORMAT, ...options });
 }
 
 /** Create a JSON string schema */
 export function Json(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'json', ...options });
+  return String({ format: JSON_FORMAT, ...options });
 }
 
 /** Create a credit card string schema (Luhn validated) */
 export function CreditCard(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'creditcard', ...options });
+  return String({ format: CREDIT_CARD_FORMAT, ...options });
 }
 
 /** Create a Uint8Array schema with optional byte length constraints */
@@ -177,7 +194,7 @@ export function RegExpInstance(options?: Partial<Omit<TRegExpInstance, "'~kind'"
 
 /** Create a regex-validated string schema */
 export function RegExp(options?: Partial<Omit<TString, "'~kind'">>): TString {
-  return String({ format: 'regex', ...options });
+  return String({ format: REGEX_FORMAT, ...options });
 }
 
 /** Create a symbol schema */

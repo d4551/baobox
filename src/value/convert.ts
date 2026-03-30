@@ -1,4 +1,15 @@
 import type { StaticParse, TSchema } from '../type/schema.js';
+import {
+  schemaInner,
+  schemaItem,
+  schemaKind,
+  schemaProperties,
+  schemaSchemaField,
+  schemaSchemaListField,
+  schemaStringField,
+  schemaVariants,
+} from '../shared/schema-access.js';
+import { isPlainRecord, recordEntries } from '../shared/runtime-guards.js';
 
 const NOT_HANDLED = Symbol('convert.not-handled');
 
@@ -26,10 +37,8 @@ export function Convert<T extends TSchema>(schema: T, value: unknown): StaticPar
   return ConvertInternal(schema, value, new Map()) as StaticParse<T>;
 }
 
-function convertPrimitiveValue(s: Record<string, unknown>, value: unknown): unknown | typeof NOT_HANDLED {
-  const kind = s['~kind'] as string | undefined;
-
-  switch (kind) {
+function convertPrimitiveValue(schema: TSchema, value: unknown): unknown | typeof NOT_HANDLED {
+  switch (schemaKind(schema)) {
     case 'String': {
       if (typeof value === 'string') return value;
       if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
@@ -40,8 +49,8 @@ function convertPrimitiveValue(s: Record<string, unknown>, value: unknown): unkn
     case 'Number': {
       if (typeof value === 'number') return value;
       if (typeof value === 'string') {
-        const n = globalThis.Number(value);
-        if (!isNaN(n)) return n;
+        const next = globalThis.Number(value);
+        if (!Number.isNaN(next)) return next;
       }
       if (typeof value === 'boolean') return value ? 1 : 0;
       return value;
@@ -49,8 +58,8 @@ function convertPrimitiveValue(s: Record<string, unknown>, value: unknown): unkn
     case 'Integer': {
       if (typeof value === 'number' && Number.isInteger(value)) return value;
       if (typeof value === 'string') {
-        const n = parseInt(value, 10);
-        if (!isNaN(n)) return n;
+        const next = Number.parseInt(value, 10);
+        if (!Number.isNaN(next)) return next;
       }
       if (typeof value === 'boolean') return value ? 1 : 0;
       if (typeof value === 'number') return Math.trunc(value);
@@ -79,8 +88,8 @@ function convertPrimitiveValue(s: Record<string, unknown>, value: unknown): unkn
     case 'Date': {
       if (value instanceof globalThis.Date) return value;
       if (typeof value === 'string' || typeof value === 'number') {
-        const d = new globalThis.Date(value);
-        if (!isNaN(d.getTime())) return d;
+        const next = new globalThis.Date(value);
+        if (!Number.isNaN(next.getTime())) return next;
       }
       return value;
     }
@@ -91,87 +100,94 @@ function convertPrimitiveValue(s: Record<string, unknown>, value: unknown): unkn
   }
 }
 
-function convertStructuredValue(s: Record<string, unknown>, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
-  const kind = s['~kind'] as string | undefined;
-
-  switch (kind) {
+function convertStructuredValue(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  switch (schemaKind(schema)) {
     case 'Object': {
-      if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+      if (!isPlainRecord(value)) return value;
       const result: Record<string, unknown> = {};
-      const props = s['properties'] as Record<string, TSchema>;
-      const obj = value as Record<string, unknown>;
-      for (const [key, val] of Object.entries(obj)) {
-        const propSchema = props[key];
-        result[key] = propSchema ? ConvertInternal(propSchema, val, refs) : val;
+      const properties = schemaProperties(schema);
+      for (const [key, entryValue] of recordEntries(value)) {
+        const propertySchema = properties[key];
+        result[key] = propertySchema ? ConvertInternal(propertySchema, entryValue, refs) : entryValue;
       }
       return result;
     }
     case 'Array': {
-      if (!Array.isArray(value)) return value;
-      const itemSchema = s['items'] as TSchema;
-      return value.map((item) => ConvertInternal(itemSchema, item, refs));
+      const itemSchema = schemaSchemaField(schema, 'items');
+      return Array.isArray(value) && itemSchema
+        ? value.map((item) => ConvertInternal(itemSchema, item, refs))
+        : value;
     }
     case 'Tuple': {
       if (!Array.isArray(value)) return value;
-      const items = s['items'] as TSchema[];
-      return value.map((item, i) => items[i] ? ConvertInternal(items[i], item, refs) : item);
+      const items = schemaSchemaListField(schema, 'items');
+      return value.map((item, index) => {
+        const itemSchema = items[index];
+        return itemSchema ? ConvertInternal(itemSchema, item, refs) : item;
+      });
     }
     default:
       return NOT_HANDLED;
   }
 }
 
-function convertCompositeValue(s: Record<string, unknown>, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
-  const kind = s['~kind'] as string | undefined;
-
-  switch (kind) {
-    case 'Optional':
-      return value === undefined ? value : ConvertInternal(s['item'] as TSchema, value, refs);
-    case 'Readonly':
-      return ConvertInternal(s['item'] as TSchema, value, refs);
+function convertCompositeValue(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  switch (schemaKind(schema)) {
+    case 'Optional': {
+      const itemSchema = schemaItem(schema);
+      return value === undefined || itemSchema === undefined
+        ? value
+        : ConvertInternal(itemSchema, value, refs);
+    }
+    case 'Readonly': {
+      const itemSchema = schemaItem(schema);
+      return itemSchema ? ConvertInternal(itemSchema, value, refs) : value;
+    }
     case 'Union': {
-      const variants = s['variants'] as TSchema[];
-      for (const variant of variants) {
+      for (const variant of schemaVariants(schema)) {
         const converted = ConvertInternal(variant, value, refs);
         if (converted !== value) return converted;
       }
       return value;
     }
     case 'Intersect': {
-      const variants = s['variants'] as TSchema[];
       let result = value;
-      for (const variant of variants) {
+      for (const variant of schemaVariants(schema)) {
         result = ConvertInternal(variant, result, refs);
       }
       return result;
     }
     case 'Recursive': {
+      const name = schemaStringField(schema, 'name');
+      const target = schemaSchemaField(schema, 'schema');
+      if (!name || target === undefined) return value;
       const nextRefs = new Map(refs);
-      nextRefs.set(s['name'] as string, s['schema'] as TSchema);
-      return ConvertInternal(s['schema'] as TSchema, value, nextRefs);
+      nextRefs.set(name, target);
+      return ConvertInternal(target, value, nextRefs);
     }
     case 'Ref': {
-      const target = refs.get(s['name'] as string);
+      const target = refs.get(schemaStringField(schema, 'name') ?? '');
       return target ? ConvertInternal(target, value, refs) : value;
     }
     case 'Decode':
-    case 'Encode':
-      return ConvertInternal(s['inner'] as TSchema, value, refs);
+    case 'Encode': {
+      const inner = schemaInner(schema);
+      return inner ? ConvertInternal(inner, value, refs) : value;
+    }
     default:
       return NOT_HANDLED;
   }
 }
 
 function ConvertInternal(schema: TSchema, value: unknown, refs: Map<string, TSchema>): unknown {
-  const s = schema as Record<string, unknown>;
-  const primitive = convertPrimitiveValue(s, value);
+  const primitive = convertPrimitiveValue(schema, value);
   if (primitive !== NOT_HANDLED) {
     return primitive;
   }
-  const structured = convertStructuredValue(s, value, refs);
+  const structured = convertStructuredValue(schema, value, refs);
   if (structured !== NOT_HANDLED) {
     return structured;
   }
-  const composite = convertCompositeValue(s, value, refs);
+  const composite = convertCompositeValue(schema, value, refs);
   return composite !== NOT_HANDLED ? composite : value;
 }

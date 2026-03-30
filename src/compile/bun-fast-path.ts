@@ -1,4 +1,5 @@
 import type { TSchema } from '../type/schema.js';
+import { BASE64_FORMAT, UINT8ARRAY_FORMAT } from '../shared/format-constants.js';
 import { checkNumberConstraints, checkStringConstraints } from '../shared/format-validators.js';
 import type { RuntimeContext } from '../shared/runtime-context.js';
 import {
@@ -6,6 +7,7 @@ import {
   isUint8ArrayBase64String,
   isUint8ArrayWithinBounds,
 } from '../shared/bytes.js';
+import { isPlainRecord } from '../shared/runtime-guards.js';
 import {
   schemaBooleanField,
   schemaBooleanOrSchemaField,
@@ -25,7 +27,7 @@ import {
 } from '../shared/schema-access.js';
 
 type FastCheck = (value: unknown) => boolean;
-type FastStrategy = 'bun-native' | 'bun-native-const' | 'bun-ffi';
+type FastStrategy = 'bun-native' | 'bun-native-const';
 
 export interface BunFastPathResult {
   fn: FastCheck;
@@ -40,7 +42,7 @@ interface BunFastPlan {
 }
 
 function mergeStrategy(...strategies: FastStrategy[]): FastStrategy {
-  return strategies.includes('bun-ffi') ? 'bun-ffi' : 'bun-native';
+  return strategies.includes('bun-native-const') ? 'bun-native-const' : 'bun-native';
 }
 
 function containsBinaryPath(schema: TSchema): boolean {
@@ -48,7 +50,8 @@ function containsBinaryPath(schema: TSchema): boolean {
     case 'Uint8Array':
       return true;
     case 'String':
-      return schemaStringField(schema, 'format') === 'base64' || schemaStringField(schema, 'format') === 'uint8array';
+      return schemaStringField(schema, 'format') === BASE64_FORMAT
+        || schemaStringField(schema, 'format') === UINT8ARRAY_FORMAT;
     case 'Array':
       return containsBinaryPath(schemaSchemaField(schema, 'items') ?? schemaItem(schema) ?? schema);
     case 'Tuple':
@@ -79,19 +82,19 @@ function compilePrimitivePlan(
   switch (typeof current === 'string' ? current : undefined) {
     case 'String':
       return {
-        fn: (value) => typeof value === 'string' && checkStringConstraints(schema as TSchema & Record<string, unknown>, value, context),
+        fn: (value) => typeof value === 'string' && checkStringConstraints(schema, value, context),
         strategy: 'bun-native',
       };
     case 'Number':
       return {
         fn: (value) => typeof value === 'number'
           && (context.TypeSystemPolicy.Get().AllowNaN || Number.isFinite(value))
-          && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value),
+          && checkNumberConstraints(schema, value),
         strategy: 'bun-native',
       };
     case 'Integer':
       return {
-        fn: (value) => typeof value === 'number' && Number.isInteger(value) && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value),
+        fn: (value) => typeof value === 'number' && Number.isInteger(value) && checkNumberConstraints(schema, value),
         strategy: 'bun-native',
       };
     case 'Boolean':
@@ -109,13 +112,13 @@ function compilePrimitivePlan(
     case 'Uint8Array': {
       const expected = schemaUnknownField(schema, 'constBytes');
       const constBytes = expected instanceof Uint8Array ? expected : undefined;
-      const minByteLength = typeof schemaUnknownField(schema, 'minByteLength') === 'number' ? schemaUnknownField(schema, 'minByteLength') as number : undefined;
-      const maxByteLength = typeof schemaUnknownField(schema, 'maxByteLength') === 'number' ? schemaUnknownField(schema, 'maxByteLength') as number : undefined;
+      const minByteLength = schemaNumberField(schema, 'minByteLength');
+      const maxByteLength = schemaNumberField(schema, 'maxByteLength');
       return {
         fn: (value) => value instanceof Uint8Array
           && isUint8ArrayWithinBounds(value, minByteLength, maxByteLength)
           && (constBytes === undefined || areUint8ArraysEqual(value, constBytes)),
-        strategy: constBytes === undefined ? 'bun-native' : 'bun-ffi',
+        strategy: constBytes === undefined ? 'bun-native' : 'bun-native-const',
       };
     }
     default:
@@ -170,8 +173,8 @@ function compileCollectionPlan(
       const optional = new Set(schemaOptionalKeys(schema));
       return {
         fn: (value) => {
-          if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-          const objectValue = value as Record<string, unknown>;
+          if (!isPlainRecord(value)) return false;
+          const objectValue = value;
           for (const key of required) {
             if (!optional.has(key) && !(key in objectValue)) return false;
           }
@@ -231,8 +234,8 @@ function compileWrapperPlan(
     }
     case 'Refine': {
       if (schemaUnknownField(schema, '~uint8arrayCodec') === true) {
-        const minByteLength = typeof schemaUnknownField(schema, 'minByteLength') === 'number' ? schemaUnknownField(schema, 'minByteLength') as number : undefined;
-        const maxByteLength = typeof schemaUnknownField(schema, 'maxByteLength') === 'number' ? schemaUnknownField(schema, 'maxByteLength') as number : undefined;
+        const minByteLength = schemaNumberField(schema, 'minByteLength');
+        const maxByteLength = schemaNumberField(schema, 'maxByteLength');
         const constBytes = schemaUnknownField(schema, 'constBytes');
         const normalizedBytes = constBytes instanceof Uint8Array ? constBytes : undefined;
         const constBase64 = schemaStringField(schema, 'constBase64');
@@ -262,7 +265,7 @@ function compileWrapperPlan(
       if (itemPlan === null || refinements === undefined) return null;
       return {
         fn: (value) => itemPlan.fn(value) && refinements.every((entry) => entry.refine(value)),
-        strategy: schemaUnknownField(schema, 'constBytes') instanceof Uint8Array ? 'bun-ffi' : itemPlan.strategy,
+        strategy: schemaUnknownField(schema, 'constBytes') instanceof Uint8Array ? 'bun-native-const' : itemPlan.strategy,
       };
     }
     default:

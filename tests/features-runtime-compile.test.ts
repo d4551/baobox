@@ -114,7 +114,7 @@ describe('Compile', () => {
     expect(validator.Check(Encode(schema, new Uint8Array([9, 9, 9])))).toBe(false);
   });
 
-  it('uses the Bun FFI byte path for raw Uint8Array exact-byte checks', () => {
+  it('uses the native byte path for raw Uint8Array exact-byte checks', () => {
     const schema = B.Uint8Array({
       minByteLength: 3,
       maxByteLength: 3,
@@ -122,7 +122,7 @@ describe('Compile', () => {
     });
     const validator = Compile(schema);
     expect(validator.IsAccelerated()).toBe(true);
-    expect(validator.Strategy()).toBe('bun-ffi');
+    expect(validator.Strategy()).toBe('bun-native-const');
     expect(validator.Check(new Uint8Array([1, 2, 3]))).toBe(true);
     expect(validator.Check(new Uint8Array([9, 9, 9]))).toBe(false);
   });

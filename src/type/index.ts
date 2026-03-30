@@ -90,6 +90,7 @@ export type {
   TBigIntCodec,
   TDateCodec,
   TURLCodec,
+  URLLike,
 } from './codec-builtins.js';
 export type {
   TInstantiate,

@@ -63,15 +63,15 @@ export function checkPrimitiveKind(
   const runtimeContext = resolveRuntimeContext(context);
   switch (kind) {
     case 'String':
-      return typeof value === 'string' && checkStringConstraints(schema as TSchema & Record<string, unknown>, value, runtimeContext);
+      return typeof value === 'string' && checkStringConstraints(schema, value, runtimeContext);
     case 'Number': {
       const policy = runtimeContext.TypeSystemPolicy.Get();
       return typeof value === 'number'
         && (policy.AllowNaN || Number.isFinite(value))
-        && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value);
+        && checkNumberConstraints(schema, value);
     }
     case 'Integer':
-      return typeof value === 'number' && Number.isInteger(value) && checkNumberConstraints(schema as TSchema & Record<string, unknown>, value);
+      return typeof value === 'number' && Number.isInteger(value) && checkNumberConstraints(schema, value);
     case 'Boolean':
       return typeof value === 'boolean';
     case 'Null':

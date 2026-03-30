@@ -1,6 +1,7 @@
 import type { TParameter, TThis } from './actions.js';
 import type { TObject, TSchema } from './schema.js';
 import type { TCall, TCyclic, TGeneric, TInfer } from './extensions.js';
+import { isRecord } from '../shared/runtime-guards.js';
 
 export type TProperties = Record<string, TSchema>;
 
@@ -14,70 +15,80 @@ function getString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function getField(schema: TSchema, field: string): unknown {
+  return Reflect.get(schema, field);
+}
+
 function getSchema(value: unknown): TSchema | undefined {
-  if (typeof value !== 'object' || value === null) {
-    return undefined;
-  }
-  return typeof (value as Record<string, unknown>)['~kind'] === 'string' ? (value as TSchema) : undefined;
+  return isRecord(value) && typeof value['~kind'] === 'string' ? value : undefined;
+}
+
+function isParameter(value: unknown): value is TParameter {
+  return isRecord(value)
+    && value['~kind'] === 'Parameter'
+    && typeof value.name === 'string'
+    && getSchema(value.extends) !== undefined
+    && getSchema(value.equals) !== undefined;
 }
 
 function getSchemaArray(value: unknown): TSchema[] {
-  return Array.isArray(value) ? value.flatMap((entry) => (getSchema(entry) ? [entry as TSchema] : [])) : [];
+  return Array.isArray(value)
+    ? value.flatMap((entry) => {
+        const schema = getSchema(entry);
+        return schema ? [schema] : [];
+      })
+    : [];
 }
 
 function getParameterSchema(schema: TSchema): { name: string; equals: TSchema } {
-  const value = schema as Record<string, unknown>;
   return {
-    name: getString(value['name']) ?? '',
-    equals: getSchema(value['equals']) ?? schema,
+    name: getString(getField(schema, 'name')) ?? '',
+    equals: getSchema(getField(schema, 'equals')) ?? schema,
   };
 }
 
 function getInferSchema(schema: TSchema): { name: string; extends: TSchema } {
-  const value = schema as Record<string, unknown>;
   return {
-    name: getString(value['name']) ?? '',
-    extends: getSchema(value['extends']) ?? schema,
+    name: getString(getField(schema, 'name')) ?? '',
+    extends: getSchema(getField(schema, 'extends')) ?? schema,
   };
 }
 
 function getGenericSchema(schema: TSchema): { parameters: TParameter[]; expression: TSchema } {
-  const value = schema as Record<string, unknown>;
-  const parameters = Array.isArray(value['parameters'])
-    ? value['parameters'].flatMap((entry) => {
-        if (typeof entry !== 'object' || entry === null) return [];
-        const candidate = entry as Record<string, unknown>;
-        return candidate['~kind'] === 'Parameter' ? [entry as TParameter] : [];
+  const parametersSource = getField(schema, 'parameters');
+  const parameters = Array.isArray(parametersSource)
+    ? parametersSource.flatMap((entry) => {
+        const parameter = isParameter(entry) ? entry : undefined;
+        return parameter ? [parameter] : [];
       })
     : [];
   return {
     parameters,
-    expression: getSchema(value['expression']) ?? schema,
+    expression: getSchema(getField(schema, 'expression')) ?? schema,
   };
 }
 
 function getCallSchema(schema: TSchema): { target: TSchema; arguments: TSchema[] } {
-  const value = schema as Record<string, unknown>;
   return {
-    target: getSchema(value['target']) ?? schema,
-    arguments: getSchemaArray(value['arguments']),
+    target: getSchema(getField(schema, 'target')) ?? schema,
+    arguments: getSchemaArray(getField(schema, 'arguments')),
   };
 }
 
 function getCyclicSchema(schema: TSchema): { $defs: Record<string, TSchema>; $ref: string } {
-  const value = schema as Record<string, unknown>;
-  const defsSource = value['$defs'];
-  const defs = typeof defsSource === 'object' && defsSource !== null
-    ? Object.fromEntries(
-        Object.entries(defsSource as Record<string, unknown>).flatMap(([key, entry]) => {
-          const nextSchema = getSchema(entry);
-          return nextSchema ? [[key, nextSchema]] : [];
-        }),
-      ) as Record<string, TSchema>
+  const defsSource = getField(schema, '$defs');
+  const defs = isRecord(defsSource)
+    ? Object.entries(defsSource).reduce<Record<string, TSchema>>((result, [key, entry]) => {
+        const nextSchema = getSchema(entry);
+        if (nextSchema !== undefined) {
+          result[key] = nextSchema;
+        }
+        return result;
+      }, {})
     : {};
   return {
     $defs: defs,
-    $ref: getString(value['$ref']) ?? '',
+    $ref: getString(getField(schema, '$ref')) ?? '',
   };
 }
 
@@ -93,20 +104,31 @@ export function bindParameterContext(parameters: readonly TParameter[], argument
 }
 
 function getObjectSchema(schema: TSchema): TObject<Record<string, TSchema>, string, string> {
-  const value = schema as Record<string, unknown>;
-  const propertiesSource = value['properties'];
-  const patternPropertiesSource = value['patternProperties'];
-  const requiredSource = value['required'];
-  const optionalSource = value['optional'];
+  const propertiesSource = getField(schema, 'properties');
+  const patternPropertiesSource = getField(schema, 'patternProperties');
+  const requiredSource = getField(schema, 'required');
+  const optionalSource = getField(schema, 'optional');
 
   return {
     ...schema,
     '~kind': 'Object' as const,
-    properties: typeof propertiesSource === 'object' && propertiesSource !== null
-      ? (propertiesSource as Record<string, TSchema>)
+    properties: isRecord(propertiesSource)
+      ? Object.entries(propertiesSource).reduce<Record<string, TSchema>>((result, [key, entry]) => {
+          const nextSchema = getSchema(entry);
+          if (nextSchema !== undefined) {
+            result[key] = nextSchema;
+          }
+          return result;
+        }, {})
       : {},
-    ...(typeof patternPropertiesSource === 'object' && patternPropertiesSource !== null
-      ? { patternProperties: patternPropertiesSource as Record<string, TSchema> }
+    ...(isRecord(patternPropertiesSource)
+      ? { patternProperties: Object.entries(patternPropertiesSource).reduce<Record<string, TSchema>>((result, [key, entry]) => {
+          const nextSchema = getSchema(entry);
+          if (nextSchema !== undefined) {
+            result[key] = nextSchema;
+          }
+          return result;
+        }, {}) }
       : {}),
     ...(Array.isArray(requiredSource)
       ? { required: requiredSource.filter((entry): entry is string => typeof entry === 'string') }
@@ -142,8 +164,7 @@ export function Instantiate<Context extends TProperties, Type extends TSchema>(
   context: Context,
   schema: Type,
 ): TInstantiate<Context, Type> {
-  const value = schema as Record<string, unknown>;
-  const kind = value['~kind'];
+  const kind = schema['~kind'];
 
   switch (kind) {
     case 'Parameter': {
@@ -157,24 +178,24 @@ export function Instantiate<Context extends TProperties, Type extends TSchema>(
     case 'This':
       return schema as TInstantiate<Context, Type>;
     case 'Ref': {
-      const name = value['name'];
+      const name = getField(schema, 'name');
       return (typeof name === 'string' && context[name] !== undefined ? context[name] : schema) as TInstantiate<Context, Type>;
     }
     case 'Array':
-      return { ...schema, items: Instantiate(context, value['items'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, items: Instantiate(context, getSchema(getField(schema, 'items')) ?? schema) } as TInstantiate<Context, Type>;
     case 'Object':
       return instantiateObject(context, schema) as TInstantiate<Context, Type>;
     case 'Tuple':
-      return { ...schema, items: ((value['items'] as TSchema[]).map((item) => Instantiate(context, item))) } as TInstantiate<Context, Type>;
+      return { ...schema, items: getSchemaArray(getField(schema, 'items')).map((item) => Instantiate(context, item)) } as TInstantiate<Context, Type>;
     case 'Record':
       return {
         ...schema,
-        key: Instantiate(context, value['key'] as TSchema),
-        value: Instantiate(context, value['value'] as TSchema),
+        key: Instantiate(context, getSchema(getField(schema, 'key')) ?? schema),
+        value: Instantiate(context, getSchema(getField(schema, 'value')) ?? schema),
       } as TInstantiate<Context, Type>;
     case 'Union':
     case 'Intersect':
-      return { ...schema, variants: (value['variants'] as TSchema[]).map((item) => Instantiate(context, item)) } as TInstantiate<Context, Type>;
+      return { ...schema, variants: getSchemaArray(getField(schema, 'variants')).map((item) => Instantiate(context, item)) } as TInstantiate<Context, Type>;
     case 'Optional':
     case 'Readonly':
     case 'Capitalize':
@@ -182,65 +203,71 @@ export function Instantiate<Context extends TProperties, Type extends TSchema>(
     case 'Uppercase':
     case 'Uncapitalize':
     case 'Awaited':
-      return { ...schema, item: Instantiate(context, value['item'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, item: Instantiate(context, getSchema(getField(schema, 'item')) ?? schema) } as TInstantiate<Context, Type>;
     case 'Immutable':
     case 'Refine':
-      return { ...schema, item: Instantiate(context, value['item'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, item: Instantiate(context, getSchema(getField(schema, 'item')) ?? schema) } as TInstantiate<Context, Type>;
     case 'Codec':
-      return { ...schema, inner: Instantiate(context, value['inner'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, inner: Instantiate(context, getSchema(getField(schema, 'inner')) ?? schema) } as TInstantiate<Context, Type>;
     case 'Exclude':
     case 'Extract':
       return {
         ...schema,
-        left: Instantiate(context, value['left'] as TSchema),
-        right: Instantiate(context, value['right'] as TSchema),
+        left: Instantiate(context, getSchema(getField(schema, 'left')) ?? schema),
+        right: Instantiate(context, getSchema(getField(schema, 'right')) ?? schema),
       } as TInstantiate<Context, Type>;
     case 'Not':
-      return { ...schema, schema: Instantiate(context, value['schema'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, schema: Instantiate(context, getSchema(getField(schema, 'schema')) ?? schema) } as TInstantiate<Context, Type>;
     case 'IfThenElse':
       return {
         ...schema,
-        if: Instantiate(context, value['if'] as TSchema),
-        then: Instantiate(context, value['then'] as TSchema),
-        else: Instantiate(context, value['else'] as TSchema),
+        if: Instantiate(context, getSchema(getField(schema, 'if')) ?? schema),
+        then: Instantiate(context, getSchema(getField(schema, 'then')) ?? schema),
+        else: Instantiate(context, getSchema(getField(schema, 'else')) ?? schema),
       } as TInstantiate<Context, Type>;
     case 'Index':
       return {
         ...schema,
-        object: Instantiate(context, value['object'] as TSchema),
-        key: Instantiate(context, value['key'] as TSchema),
+        object: Instantiate(context, getSchema(getField(schema, 'object')) ?? schema),
+        key: Instantiate(context, getSchema(getField(schema, 'key')) ?? schema),
       } as TInstantiate<Context, Type>;
     case 'Mapped':
-      return { ...schema, object: Instantiate(context, value['object'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, object: Instantiate(context, getSchema(getField(schema, 'object')) ?? schema) } as TInstantiate<Context, Type>;
     case 'Conditional':
       return {
         ...schema,
-        check: Instantiate(context, value['check'] as TSchema),
-        union: (value['union'] as TSchema[]).map((item) => Instantiate(context, item)),
-        ...(value['default'] !== undefined ? { default: Instantiate(context, value['default'] as TSchema) } : {}),
+        check: Instantiate(context, getSchema(getField(schema, 'check')) ?? schema),
+        union: getSchemaArray(getField(schema, 'union')).map((item) => Instantiate(context, item)),
+        ...(getField(schema, 'default') !== undefined
+          ? { default: Instantiate(context, getSchema(getField(schema, 'default')) ?? schema) }
+          : {}),
       } as TInstantiate<Context, Type>;
     case 'Function':
     case 'Constructor':
       return {
         ...schema,
-        parameters: (value['parameters'] as TSchema[]).map((item) => Instantiate(context, item)),
-        returns: Instantiate(context, value['returns'] as TSchema),
+        parameters: getSchemaArray(getField(schema, 'parameters')).map((item) => Instantiate(context, item)),
+        returns: Instantiate(context, getSchema(getField(schema, 'returns')) ?? schema),
       } as TInstantiate<Context, Type>;
     case 'Promise':
     case 'Iterator':
     case 'AsyncIterator':
     case 'Rest':
-      return { ...schema, item: Instantiate(context, value['item'] as TSchema), items: Instantiate(context, (value['items'] as TSchema | undefined) ?? (value['item'] as TSchema)) } as TInstantiate<Context, Type>;
+      return {
+        ...schema,
+        item: Instantiate(context, getSchema(getField(schema, 'item')) ?? schema),
+        items: Instantiate(context, getSchema(getField(schema, 'items')) ?? getSchema(getField(schema, 'item')) ?? schema),
+      } as TInstantiate<Context, Type>;
     case 'Decode':
-      return { ...schema, inner: Instantiate(context, value['inner'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, inner: Instantiate(context, getSchema(getField(schema, 'inner')) ?? schema) } as TInstantiate<Context, Type>;
     case 'Encode':
-      return { ...schema, inner: Instantiate(context, value['inner'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, inner: Instantiate(context, getSchema(getField(schema, 'inner')) ?? schema) } as TInstantiate<Context, Type>;
     case 'ReturnType':
     case 'Parameters':
-      return { ...schema, function: Instantiate(context, value['function'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, function: Instantiate(context, getSchema(getField(schema, 'function')) ?? schema) } as TInstantiate<Context, Type>;
     case 'InstanceType':
     case 'ConstructorParameters':
-      return { ...schema, constructor: Instantiate(context, value['constructor'] as TSchema) } as TInstantiate<Context, Type>;
+      return { ...schema, constructor: Instantiate(context, getSchema(getField(schema, 'constructor')) ?? schema) } as TInstantiate<Context, Type>;
     case 'Generic': {
       const generic = getGenericSchema(schema);
       return {
@@ -253,8 +280,7 @@ export function Instantiate<Context extends TProperties, Type extends TSchema>(
       const call = getCallSchema(schema);
       const target = Instantiate(context, call.target);
       const arguments_ = call.arguments.map((item) => Instantiate(context, item));
-      const targetValue = target as Record<string, unknown>;
-      if (targetValue['~kind'] === 'Generic') {
+      if (target['~kind'] === 'Generic') {
         const generic = getGenericSchema(target);
         const nextContext = bindParameterContext(generic.parameters, arguments_);
         return Instantiate({ ...context, ...nextContext }, generic.expression) as TInstantiate<Context, Type>;

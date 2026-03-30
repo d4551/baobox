@@ -1,27 +1,24 @@
 import type { TKind, TSchema } from '../type/schema.js';
+import { isRecord } from './runtime-guards.js';
 
-export type SchemaNode = TSchema & Record<string, unknown>;
+export type SchemaNode = TSchema;
 export type SchemaRefinement = { refine: (value: unknown) => boolean; message?: string };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 function isSchemaValue(value: unknown): value is TSchema {
   return isRecord(value) && typeof value['~kind'] === 'string';
 }
 
 export function schemaNode(schema: TSchema): SchemaNode {
-  return schema as SchemaNode;
+  return schema;
 }
 
 export function schemaKind(schema: TSchema): TKind | undefined {
-  const kind = schemaNode(schema)['~kind'];
+  const kind = Reflect.get(schemaNode(schema), '~kind');
   return typeof kind === 'string' ? kind as TKind : undefined;
 }
 
 export function schemaUnknownField(schema: TSchema, field: string): unknown {
-  return schemaNode(schema)[field];
+  return Reflect.get(schemaNode(schema), field);
 }
 
 export function schemaStringField(schema: TSchema, field: string): string | undefined {
@@ -69,9 +66,12 @@ export function schemaSchemaMapField(schema: TSchema, field: string): Record<str
   if (!isRecord(value)) {
     return {};
   }
-  return Object.values(value).every(isSchemaValue)
-    ? value as Record<string, TSchema>
-    : {};
+  return Object.entries(value).reduce<Record<string, TSchema>>((result, [key, entry]) => {
+    if (isSchemaValue(entry)) {
+      result[key] = entry;
+    }
+    return result;
+  }, {});
 }
 
 export function schemaBooleanOrSchemaField(schema: TSchema, field: string): boolean | TSchema | undefined {

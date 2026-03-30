@@ -1,6 +1,7 @@
 import type { TArray, TObject, TRecord, TSchema, TTuple } from '../../type/schema.js';
 import { schemaPath } from '../../shared/schema-access.js';
 import { getPatternPropertySchemas } from '../../shared/utils.js';
+import { isPlainRecord, recordEntries } from '../../shared/runtime-guards.js';
 import { CheckInternal } from '../../value/check.js';
 import { createSchemaIssue, type SchemaIssue } from '../messages.js';
 import { appendPath, type CollectSchemaIssues, type ReferenceMap } from './shared.js';
@@ -64,12 +65,12 @@ function collectObjectIssues(
   const issues: SchemaIssue[] = [];
   const currentPath = schemaPath(path);
 
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (!isPlainRecord(value)) {
     issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'object' }));
     return issues;
   }
 
-  const objectValue = value as Record<string, unknown>;
+  const objectValue = value;
   const required = schema.required ?? [];
   const optional = new Set((schema.optional ?? []).map(String));
 
@@ -146,12 +147,12 @@ function collectRecordIssues(
   const issues: SchemaIssue[] = [];
   const currentPath = schemaPath(path);
 
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (!isPlainRecord(value)) {
     issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'object' }));
     return issues;
   }
 
-  const entries = Object.entries(value as Record<string, unknown>);
+  const entries = recordEntries(value);
   if (schema.minProperties !== undefined && entries.length < schema.minProperties) {
     issues.push(createSchemaIssue(currentPath, 'MIN_PROPERTIES', { minimum: schema.minProperties }));
   }

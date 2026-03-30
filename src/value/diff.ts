@@ -1,4 +1,5 @@
 import { Equal } from './equal.js';
+import { isPlainRecord, recordKeys, recordValue } from '../shared/runtime-guards.js';
 
 /** A structural edit operation */
 export interface DiffEdit {
@@ -47,18 +48,21 @@ function diffInternal(a: unknown, b: unknown, path: string, edits: DiffEdit[]): 
     return;
   }
 
-  const aObj = a as Record<string, unknown>;
-  const bObj = b as Record<string, unknown>;
-  const allKeys = new Set([...Object.keys(aObj), ...Object.keys(bObj)]);
+  if (!isPlainRecord(a) || !isPlainRecord(b)) {
+    edits.push({ type: 'update', path, value: b });
+    return;
+  }
+
+  const allKeys = new Set([...recordKeys(a), ...recordKeys(b)]);
 
   for (const key of allKeys) {
     const keyPath = path ? `${path}/${key}` : `/${key}`;
-    if (!(key in aObj)) {
-      edits.push({ type: 'insert', path: keyPath, value: bObj[key] });
-    } else if (!(key in bObj)) {
+    if (!(key in a)) {
+      edits.push({ type: 'insert', path: keyPath, value: recordValue(b, key) });
+    } else if (!(key in b)) {
       edits.push({ type: 'delete', path: keyPath });
     } else {
-      diffInternal(aObj[key], bObj[key], keyPath, edits);
+      diffInternal(recordValue(a, key), recordValue(b, key), keyPath, edits);
     }
   }
 }

@@ -1,5 +1,6 @@
 import type { Static, TSchema } from './schema.js';
 import type { TParameter } from './actions.js';
+import { isRecord } from '../shared/runtime-guards.js';
 import { Readonly as TypeReadonly } from './combinators.js';
 import { Unknown } from './primitives.js';
 import { Instantiate, bindParameterContext } from './instantiation.js';
@@ -43,16 +44,20 @@ export function Codec<Type extends TSchema>(type: Type): DecodeBuilder<Type> {
   return new DecodeBuilder(type);
 }
 
+function isSchema(value: unknown): value is TSchema {
+  return isRecord(value) && typeof value['~kind'] === 'string';
+}
+
+function isParameter(value: unknown): value is TParameter {
+  return isRecord(value) && value['~kind'] === 'Parameter';
+}
+
 export function IsCodec(value: unknown): value is TCodec {
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value) || value['~kind'] !== 'Codec' || !isRecord(value.codec)) {
     return false;
   }
-  const schema = value as Record<string, unknown>;
-  return schema['~kind'] === 'Codec'
-    && typeof schema.codec === 'object'
-    && schema.codec !== null
-    && typeof (schema.codec as Record<string, unknown>).decode === 'function'
-    && typeof (schema.codec as Record<string, unknown>).encode === 'function';
+  return typeof value.codec.decode === 'function'
+    && typeof value.codec.encode === 'function';
 }
 
 export interface TImmutable<Type extends TSchema = TSchema> extends TSchema {
@@ -68,9 +73,8 @@ export function Immutable<Type extends TSchema>(type: Type): TImmutable<Type> {
 }
 
 export function IsImmutable(value: unknown): value is TImmutable {
-  return typeof value === 'object'
-    && value !== null
-    && ((value as Record<string, unknown>)['~kind'] === 'Immutable' || (value as Record<string, unknown>)['~immutable'] === true);
+  return isRecord(value)
+    && (value['~kind'] === 'Immutable' || value['~immutable'] === true);
 }
 
 export type TRefineCallback<Type extends TSchema> = (value: Static<Type>) => boolean;
@@ -99,12 +103,12 @@ export function Refine<Type extends TSchema>(
 }
 
 export function IsRefine(value: unknown): value is TRefine {
-  return typeof value === 'object'
-    && value !== null
-    && ((value as Record<string, unknown>)['~kind'] === 'Refine' || Array.isArray((value as Record<string, unknown>)['~refine']));
+  return isRecord(value)
+    && (value['~kind'] === 'Refine' || Array.isArray(value['~refine']));
 }
 
 export class Base<Value = unknown> implements TSchema {
+  readonly [key: string]: unknown;
   readonly '~kind' = 'Base' as const;
 
   Check(value: unknown): value is Value {
@@ -137,7 +141,7 @@ export class Base<Value = unknown> implements TSchema {
 }
 
 export function IsBase(value: unknown): value is Base {
-  return value instanceof Base || (typeof value === 'object' && value !== null && (value as Record<string, unknown>)['~kind'] === 'Base');
+  return value instanceof Base || (isRecord(value) && value['~kind'] === 'Base');
 }
 
 export interface TCall<Target extends TSchema = TSchema, Arguments extends TSchema[] = TSchema[]> extends TSchema {
@@ -150,10 +154,11 @@ export function Call<Target extends TSchema, Arguments extends TSchema[]>(
   target: Target,
   arguments_: [...Arguments],
 ): TSchema {
-  const targetValue = target as Record<string, unknown>;
-  if (targetValue['~kind'] === 'Generic') {
-    const parameters = (targetValue.parameters as TParameter[] | undefined) ?? [];
-    const expression = targetValue.expression as TSchema | undefined;
+  if (target['~kind'] === 'Generic' && isRecord(target)) {
+    const parameters = Array.isArray(target.parameters)
+      ? target.parameters.filter(isParameter)
+      : [];
+    const expression = isSchema(target.expression) ? target.expression : undefined;
     if (expression !== undefined) {
       const context = bindParameterContext(parameters, arguments_);
       return Instantiate(context, expression);
@@ -167,7 +172,7 @@ export function Call<Target extends TSchema, Arguments extends TSchema[]>(
 }
 
 export function IsCall(value: unknown): value is TCall {
-  return typeof value === 'object' && value !== null && (value as Record<string, unknown>)['~kind'] === 'Call';
+  return isRecord(value) && value['~kind'] === 'Call';
 }
 
 export interface TCyclic<Defs extends Record<string, TSchema> = Record<string, TSchema>, Ref extends string = string> extends TSchema {
@@ -190,7 +195,7 @@ export function Cyclic<Defs extends Record<string, TSchema>, Ref extends string>
 }
 
 export function IsCyclic(value: unknown): value is TCyclic {
-  return typeof value === 'object' && value !== null && (value as Record<string, unknown>)['~kind'] === 'Cyclic';
+  return isRecord(value) && value['~kind'] === 'Cyclic';
 }
 
 export interface TGeneric<Parameters extends TParameter[] = TParameter[], Expression extends TSchema = TSchema> extends TSchema {
@@ -213,7 +218,7 @@ export function Generic<Parameters extends TParameter[], Expression extends TSch
 }
 
 export function IsGeneric(value: unknown): value is TGeneric {
-  return typeof value === 'object' && value !== null && (value as Record<string, unknown>)['~kind'] === 'Generic';
+  return isRecord(value) && value['~kind'] === 'Generic';
 }
 
 export interface TInfer<Name extends string = string, Extends extends TSchema = TSchema> extends TSchema {
@@ -235,7 +240,7 @@ export function Infer(name: string, extends_?: TSchema): TInfer {
 }
 
 export function IsInfer(value: unknown): value is TInfer {
-  return typeof value === 'object' && value !== null && (value as Record<string, unknown>)['~kind'] === 'Infer';
+  return isRecord(value) && value['~kind'] === 'Infer';
 }
 
 export type TImmutableSchema<Type extends TSchema> = TImmutable<Type> | ReturnType<typeof TypeReadonly<Type>>;

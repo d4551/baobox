@@ -1,4 +1,4 @@
-import { Settings } from '../shared/utils.js';
+import { deleteRecordKey, Settings } from '../shared/utils.js';
 import {
   LocaleCodes,
   type LocaleIdentifier,
@@ -12,8 +12,24 @@ import { Create } from '../value/create.js';
 import { Hash } from '../value/hash.js';
 import { Mutate } from '../value/mutate.js';
 
+const USER_ARGUMENT_OFFSET = 2;
+
+interface BunArgumentsRuntime {
+  readonly Bun?: {
+    readonly argv?: readonly string[];
+  };
+}
+
+function runtimeArguments(): readonly string[] {
+  const runtime = globalThis as typeof globalThis & BunArgumentsRuntime;
+  if (runtime.Bun?.argv !== undefined) {
+    return runtime.Bun.argv.slice(USER_ARGUMENT_OFFSET);
+  }
+  return typeof process === 'undefined' ? [] : process.argv.slice(USER_ARGUMENT_OFFSET);
+}
+
 export const Arguments = {
-  Match(expected: readonly string[], actual: readonly string[] = Bun.argv.slice(2)): boolean {
+  Match(expected: readonly string[], actual: readonly string[] = runtimeArguments()): boolean {
     return expected.length === actual.length && expected.every((value, index) => value === actual[index]);
   },
 };
@@ -66,7 +82,7 @@ export const Memory = {
     }
     if (typeof value === 'object' && value !== null) {
       for (const key of Object.keys(value)) {
-        delete (value as Record<string, unknown>)[key];
+        deleteRecordKey(value, key);
       }
     }
   },

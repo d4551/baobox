@@ -3,6 +3,25 @@ import {
   KNOWN_FORMATS,
   validateFormat,
 } from '../shared/utils.js';
+import {
+  DATETIME_FORMAT,
+  DATE_FORMAT,
+  DURATION_FORMAT,
+  EMPTY_JSON_POINTER,
+  EMAIL_FORMAT,
+  HOSTNAME_FORMAT,
+  IPV4_FORMAT,
+  IPV6_FORMAT,
+  JSON_POINTER_RE,
+  REGEX_FORMAT,
+  RELATIVE_JSON_POINTER_RE,
+  TIME_FORMAT,
+  URI_FORMAT,
+  URI_FRAGMENT_PREFIX,
+  URI_REFERENCE_RE,
+  URI_TEMPLATE_RE,
+  UUID_FORMAT,
+} from '../shared/format-constants.js';
 
 function builtinValidator(name: string): ((value: string) => boolean) | undefined {
   return KNOWN_FORMATS.has(name) ? (value: string) => validateFormat(value, name) : undefined;
@@ -52,29 +71,31 @@ export function Test(format: string, value: string): boolean {
   return validator ? validator(value) : false;
 }
 
-export function IsDate(value: string): boolean { return Test('date', value); }
-export function IsDateTime(value: string): boolean { return Test('datetime', value); }
-export function IsDuration(value: string): boolean { return Test('duration', value); }
-export function IsEmail(value: string): boolean { return Test('email', value); }
-export function IsHostname(value: string): boolean { return Test('hostname', value); }
-export function IsIPv4(value: string): boolean { return Test('ipv4', value); }
-export function IsIPv6(value: string): boolean { return Test('ipv6', value); }
+export function IsDate(value: string): boolean { return Test(DATE_FORMAT, value); }
+export function IsDateTime(value: string): boolean { return Test(DATETIME_FORMAT, value); }
+export function IsDuration(value: string): boolean { return Test(DURATION_FORMAT, value); }
+export function IsEmail(value: string): boolean { return Test(EMAIL_FORMAT, value); }
+export function IsHostname(value: string): boolean { return Test(HOSTNAME_FORMAT, value); }
+export function IsIPv4(value: string): boolean { return Test(IPV4_FORMAT, value); }
+export function IsIPv6(value: string): boolean { return Test(IPV6_FORMAT, value); }
 export function IsIdnEmail(value: string): boolean { return IsEmail(value); }
 export function IsIdnHostname(value: string): boolean { return IsHostname(value); }
 export function IsIri(value: string): boolean { return IsUri(value); }
 export function IsIriReference(value: string): boolean { return IsUriReference(value); }
-export function IsJsonPointer(value: string): boolean { return value === '' || /^\/(?:[^/~]|~0|~1)*?(?:\/(?:[^/~]|~0|~1)*?)*$/.test(value); }
-export function IsJsonPointerUriFragment(value: string): boolean { return value.startsWith('#') && IsJsonPointer(value.slice(1)); }
-export function IsRegex(value: string): boolean { return Test('regex', value); }
-export function IsRelativeJsonPointer(value: string): boolean { return /^(0|[1-9]\d*)(#|(?:\/(?:[^/~]|~0|~1)*?)*)$/.test(value); }
-export function IsTime(value: string): boolean { return Test('time', value); }
-export function IsUri(value: string): boolean { return Test('uri', value); }
-export function IsUriReference(value: string): boolean {
-  return IsUri(value) || /^(?:[A-Za-z][A-Za-z\d+.-]*:|\/|\.|#|\?)/.test(value);
+export function IsJsonPointer(value: string): boolean { return value === EMPTY_JSON_POINTER || JSON_POINTER_RE.test(value); }
+export function IsJsonPointerUriFragment(value: string): boolean {
+  return value.startsWith(URI_FRAGMENT_PREFIX) && IsJsonPointer(value.slice(URI_FRAGMENT_PREFIX.length));
 }
-export function IsUriTemplate(value: string): boolean { return /^(?:[^{}]|\{[^{}]+\})+$/.test(value); }
+export function IsRegex(value: string): boolean { return Test(REGEX_FORMAT, value); }
+export function IsRelativeJsonPointer(value: string): boolean { return RELATIVE_JSON_POINTER_RE.test(value); }
+export function IsTime(value: string): boolean { return Test(TIME_FORMAT, value); }
+export function IsUri(value: string): boolean { return Test(URI_FORMAT, value); }
+export function IsUriReference(value: string): boolean {
+  return IsUri(value) || URI_REFERENCE_RE.test(value);
+}
+export function IsUriTemplate(value: string): boolean { return URI_TEMPLATE_RE.test(value); }
 export function IsUrl(value: string): boolean { return IsUri(value); }
-export function IsUuid(value: string): boolean { return Test('uuid', value); }
+export function IsUuid(value: string): boolean { return Test(UUID_FORMAT, value); }
 
 const Format = {
   Clear,

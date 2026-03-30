@@ -1,3 +1,5 @@
+import { isPlainRecord, recordKeys, recordValue } from '../shared/runtime-guards.js';
+
 /** Deep structural equality comparison */
 export function Equal(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -7,13 +9,13 @@ export function Equal(a: unknown, b: unknown): boolean {
   if (typeof a === 'bigint') return a === b;
 
   if (a instanceof globalThis.Date && b instanceof globalThis.Date) {
-    return a.getTime() === (b as globalThis.Date).getTime();
+    return a.getTime() === b.getTime();
   }
 
   if (a instanceof globalThis.Uint8Array && b instanceof globalThis.Uint8Array) {
-    if (a.length !== (b as globalThis.Uint8Array).length) return false;
+    if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-      if (a[i] !== (b as globalThis.Uint8Array)[i]) return false;
+      if (a[i] !== b[i]) return false;
     }
     return true;
   }
@@ -26,14 +28,12 @@ export function Equal(a: unknown, b: unknown): boolean {
     return true;
   }
 
-  if (typeof a === 'object' && typeof b === 'object') {
-    const aObj = a as Record<string, unknown>;
-    const bObj = b as Record<string, unknown>;
-    const aKeys = Object.keys(aObj);
-    const bKeys = Object.keys(bObj);
+  if (isPlainRecord(a) && isPlainRecord(b)) {
+    const aKeys = recordKeys(a);
+    const bKeys = recordKeys(b);
     if (aKeys.length !== bKeys.length) return false;
     for (const key of aKeys) {
-      if (!Equal(aObj[key], bObj[key])) return false;
+      if (!Equal(recordValue(a, key), recordValue(b, key))) return false;
     }
     return true;
   }

@@ -1,22 +1,41 @@
 import type { TSchema } from '../type/schema.js';
 import {
   BASE64_RE,
+  BASE64_FORMAT,
+  CREDIT_CARD_FORMAT,
+  DATETIME_FORMAT,
+  DATE_FORMAT,
   EMAIL_RE,
+  EMAIL_FORMAT,
   HEXCLR_RE,
   HEX_RE,
+  HEX_COLOR_FORMAT,
+  HEX_FORMAT,
   HOSTNAME_RE,
+  HOSTNAME_FORMAT,
+  IP_FORMAT,
   ISO_DATE_RE,
   ISO_DT_RE,
   ISO_DUR_RE,
   ISO_TIME_RE,
   IPV4_RE,
+  IPV4_FORMAT,
   IPV6_RE,
+  IPV6_FORMAT,
+  JSON_FORMAT,
   LUHN_DIGITS_RE,
+  REGEX_FORMAT,
+  TIME_FORMAT,
+  UINT8ARRAY_FORMAT,
   URI_RE,
+  URI_FORMAT,
   UUID_RE,
+  UUID_FORMAT,
+  DURATION_FORMAT,
 } from './format-constants.js';
 import { isValidJson, isValidRegex } from './regex-json.js';
 import { resolveRuntimeContext, type RuntimeContextArg } from './runtime-context.js';
+import { schemaNumberField, schemaStringField } from './schema-access.js';
 
 /** @internal Luhn algorithm for credit card validation */
 export function luhnCheck(digits: string): boolean {
@@ -56,48 +75,59 @@ export function validateFormat(
   const custom = runtimeContext.FormatRegistry.Get(format);
   if (custom !== undefined) return custom(value);
   switch (format) {
-    case 'email': return EMAIL_RE.test(value);
-    case 'uri': return URI_RE.test(value);
-    case 'ip': return IPV4_RE.test(value) || IPV6_RE.test(value);
-    case 'hostname': return HOSTNAME_RE.test(value);
-    case 'ipv4': return IPV4_RE.test(value);
-    case 'ipv6': return IPV6_RE.test(value);
-    case 'uuid': return UUID_RE.test(value);
-    case 'date': return ISO_DATE_RE.test(value) && isValidISODate(value);
-    case 'datetime': return ISO_DT_RE.test(value);
-    case 'time': return ISO_TIME_RE.test(value);
-    case 'duration': return ISO_DUR_RE.test(value);
-    case 'base64': return BASE64_RE.test(value);
-    case 'hex': return HEX_RE.test(value);
-    case 'hexcolor': return HEXCLR_RE.test(value);
-    case 'creditcard': return luhnCheck(value.replace(/\D/g, ''));
-    case 'regex': return isValidRegex(value);
-    case 'json': return isValidJson(value);
-    case 'uint8array': return BASE64_RE.test(value);
+    case EMAIL_FORMAT: return EMAIL_RE.test(value);
+    case URI_FORMAT: return URI_RE.test(value);
+    case IP_FORMAT: return IPV4_RE.test(value) || IPV6_RE.test(value);
+    case HOSTNAME_FORMAT: return HOSTNAME_RE.test(value);
+    case IPV4_FORMAT: return IPV4_RE.test(value);
+    case IPV6_FORMAT: return IPV6_RE.test(value);
+    case UUID_FORMAT: return UUID_RE.test(value);
+    case DATE_FORMAT: return ISO_DATE_RE.test(value) && isValidISODate(value);
+    case DATETIME_FORMAT: return ISO_DT_RE.test(value);
+    case TIME_FORMAT: return ISO_TIME_RE.test(value);
+    case DURATION_FORMAT: return ISO_DUR_RE.test(value);
+    case BASE64_FORMAT: return BASE64_RE.test(value);
+    case HEX_FORMAT: return HEX_RE.test(value);
+    case HEX_COLOR_FORMAT: return HEXCLR_RE.test(value);
+    case CREDIT_CARD_FORMAT: return luhnCheck(value.replace(/\D/g, ''));
+    case REGEX_FORMAT: return isValidRegex(value);
+    case JSON_FORMAT: return isValidJson(value);
+    case UINT8ARRAY_FORMAT: return BASE64_RE.test(value);
     default: return true;
   }
 }
 
 /** @internal Check string constraints (minLength, maxLength, pattern, format) */
 export function checkStringConstraints(
-  schema: TSchema & Record<string, unknown>,
+  schema: TSchema,
   value: string,
   context?: RuntimeContextArg,
 ): boolean {
-  if (schema.minLength !== undefined && value.length < (schema.minLength as number)) return false;
-  if (schema.maxLength !== undefined && value.length > (schema.maxLength as number)) return false;
-  if (schema.pattern !== undefined) {
-    const regex = new RegExp(schema.pattern as string);
+  const minLength = schemaNumberField(schema, 'minLength');
+  const maxLength = schemaNumberField(schema, 'maxLength');
+  const pattern = schemaStringField(schema, 'pattern');
+  const format = schemaStringField(schema, 'format');
+
+  if (minLength !== undefined && value.length < minLength) return false;
+  if (maxLength !== undefined && value.length > maxLength) return false;
+  if (pattern !== undefined) {
+    const regex = new RegExp(pattern);
     if (!regex.test(value)) return false;
   }
-  return schema.format === undefined || validateFormat(value, schema.format as string, context);
+  return format === undefined || validateFormat(value, format, context);
 }
 
 /** @internal Check number constraints (min, max, exclusive, multipleOf) */
-export function checkNumberConstraints(schema: TSchema & Record<string, unknown>, value: number): boolean {
-  if (schema.minimum !== undefined && value < (schema.minimum as number)) return false;
-  if (schema.maximum !== undefined && value > (schema.maximum as number)) return false;
-  if (schema.exclusiveMinimum !== undefined && value <= (schema.exclusiveMinimum as number)) return false;
-  if (schema.exclusiveMaximum !== undefined && value >= (schema.exclusiveMaximum as number)) return false;
-  return schema.multipleOf === undefined || value % (schema.multipleOf as number) === 0;
+export function checkNumberConstraints(schema: TSchema, value: number): boolean {
+  const minimum = schemaNumberField(schema, 'minimum');
+  const maximum = schemaNumberField(schema, 'maximum');
+  const exclusiveMinimum = schemaNumberField(schema, 'exclusiveMinimum');
+  const exclusiveMaximum = schemaNumberField(schema, 'exclusiveMaximum');
+  const multipleOf = schemaNumberField(schema, 'multipleOf');
+
+  if (minimum !== undefined && value < minimum) return false;
+  if (maximum !== undefined && value > maximum) return false;
+  if (exclusiveMinimum !== undefined && value <= exclusiveMinimum) return false;
+  if (exclusiveMaximum !== undefined && value >= exclusiveMaximum) return false;
+  return multipleOf === undefined || value % multipleOf === 0;
 }

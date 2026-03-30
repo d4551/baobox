@@ -8,9 +8,18 @@ export {
   type DeriveObjectOptions,
 } from './object-utils.js';
 export {
+  cloneRecord,
+  deleteRecordKey,
+  isCodecShape,
+  isPlainRecord,
+  isRecord,
   isAsyncIteratorLike,
   isIteratorLike,
   isPromiseLike,
+  recordEntries,
+  recordKeys,
+  recordValue,
+  type CodecShape,
 } from './runtime-guards.js';
 export {
   BASE64_RE,

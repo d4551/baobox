@@ -1,9 +1,15 @@
 import type { ParseResult, SchemaError } from '../error/errors.js';
 import { RuntimeContext } from '../shared/runtime-context.js';
+import { isRecord } from '../shared/runtime-guards.js';
 import type { TSchema, StaticParse } from '../type/schema.js';
 import type { XSchema, XStatic } from '../schema/shared.js';
 import { TryParse as TryTypedParse } from '../value/parse.js';
 import { TryParse as TryJsonSchemaParse } from '../schema/parse.js';
+
+const STANDARD_SCHEMA_VENDOR = 'baobox';
+const STANDARD_SCHEMA_VERSION = 1 as const;
+const ROOT_STANDARD_PATH = '';
+const ROOT_STANDARD_POINTER = '/';
 
 export interface StandardSchemaV1<Input = unknown, Output = Input> {
   readonly '~standard': StandardSchemaV1.Props<Input, Output>;
@@ -46,7 +52,7 @@ export namespace StandardSchemaV1 {
       options?: Options | undefined,
     ) => Result<Output> | Promise<Result<Output>>;
     readonly vendor: string;
-    readonly version: 1;
+    readonly version: typeof STANDARD_SCHEMA_VERSION;
   }
 
   export type InferInput<Schema extends StandardSchemaV1> = NonNullable<
@@ -76,9 +82,7 @@ function isRuntimeContext(value: unknown): value is RuntimeContext {
 }
 
 function isTypedSchema(schema: TSchema | XSchema): schema is TSchema {
-  return typeof schema === 'object'
-    && schema !== null
-    && typeof (schema as Record<string, unknown>)['~kind'] === 'string';
+  return isRecord(schema) && typeof schema['~kind'] === 'string';
 }
 
 function copySchemaValue(schema: TSchema | XSchema): Record<string, unknown> {
@@ -94,7 +98,7 @@ function resolveContext(
 }
 
 function pathSegments(path: string): ReadonlyArray<PropertyKey> | undefined {
-  if (path === '/' || path === '') {
+  if (path === ROOT_STANDARD_POINTER || path === ROOT_STANDARD_PATH) {
     return [];
   }
   return path.split('.').map((segment) => {
@@ -142,8 +146,8 @@ function attachTypedSchema<Schema extends TSchema>(
       validate(value, validateOptions) {
         return validateTypedSchema(schema, value, resolveContext(validateOptions, options.context));
       },
-      vendor: 'baobox',
-      version: 1,
+      vendor: STANDARD_SCHEMA_VENDOR,
+      version: STANDARD_SCHEMA_VERSION,
     },
   } as StandardizedSchema<Schema, StaticParse<Schema>>;
 }
@@ -159,8 +163,8 @@ function attachJsonSchema<Schema extends XSchema>(
       validate(value) {
         return validateJsonSchema(schema, value);
       },
-      vendor: 'baobox',
-      version: 1,
+      vendor: STANDARD_SCHEMA_VENDOR,
+      version: STANDARD_SCHEMA_VERSION,
     },
   } as StandardizedSchema<Schema, XStatic<Schema>>;
 }

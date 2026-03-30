@@ -12,8 +12,15 @@ it('supports expectTypeOf assertions for new APIs', () => {
   const decoded = B.TryDecode(B.DateCodec(), '2024-01-01T00:00:00.000Z');
   const repaired = B.CompileCached(User).TryRepair({ name: 'Ada' });
 
-  expectTypeOf(standardResult)
-    .toMatchTypeOf<B.StandardSchemaV1.Result<{ name: string; age: number }> | Promise<B.StandardSchemaV1.Result<{ name: string; age: number }>>>();
-  expectTypeOf(decoded).toMatchTypeOf<B.ParseResult<Date>>();
-  expectTypeOf(repaired).toMatchTypeOf<B.ParseResult<{ name: string; age: number }>>();
+  const typedStandard:
+    B.StandardSchemaV1.Result<{ name: string; age: number }>
+    | Promise<B.StandardSchemaV1.Result<{ name: string; age: number }>> = standardResult;
+  const typedDecoded: B.ParseResult<Date> = decoded;
+  const typedRepaired: B.ParseResult<{ name: string; age: number }> = repaired;
+
+  void typedStandard;
+  void typedDecoded;
+  void typedRepaired;
+  expectTypeOf(decoded.success).toEqualTypeOf<boolean>();
+  expectTypeOf(repaired.success).toEqualTypeOf<boolean>();
 });

@@ -18,6 +18,7 @@ import { Clone } from './clone.js';
 import { Convert } from './convert.js';
 import { Create } from './create.js';
 import type { RuntimeContext } from '../shared/runtime-context.js';
+import { isPlainRecord, recordEntries } from '../shared/runtime-guards.js';
 
 type ReferenceMap = Map<string, TSchema>;
 
@@ -44,12 +45,13 @@ export function Repair<T extends TSchema>(
 }
 
 function repairObject(schema: TObject, value: unknown, refs: ReferenceMap): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return Create(schema) as Record<string, unknown>;
+  if (!isPlainRecord(value)) {
+    const created = Create(schema);
+    return isPlainRecord(created) ? created : {};
   }
 
   const optional = new Set((schema.optional ?? []).map(String));
-  const objectValue = value as Record<string, unknown>;
+  const objectValue = value;
   const result: Record<string, unknown> = {};
 
   for (const [key, propertySchema] of Object.entries(schema.properties)) {
@@ -113,9 +115,9 @@ function repairTuple(schema: TTuple, value: unknown, refs: ReferenceMap): unknow
 }
 
 function repairRecord(schema: TRecord, value: unknown, refs: ReferenceMap): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  if (!isPlainRecord(value)) return {};
   const result: Record<string, unknown> = {};
-  Object.entries(value as Record<string, unknown>).forEach(([key, entryValue]) => {
+  recordEntries(value).forEach(([key, entryValue]) => {
     result[key] = repairInternal(schema.value, entryValue, refs);
   });
   return result;

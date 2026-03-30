@@ -14,7 +14,11 @@ Baobox publishes export-condition entries in `package.json`.
 
 That means Bun consumers can work directly against the source entrypoints without a prebuild, while published ESM consumers use the generated distribution files.
 
+Because the public `bun` export condition resolves into `src/*.ts`, the published package must ship `src/` alongside `dist/`. If `src/` is omitted from the tarball, Bun installs will resolve package exports to missing files.
+
 The build writes JavaScript to `dist/index.js`, `dist/value/index.js`, and the matching subpath directories, so the emitted files and the export map stay in sync.
+
+Consumers do not need a `typescript` peer dependency from `baobox`. The package ships its own declaration files, and install resolution should not force a specific TypeScript version on downstream projects.
 
 ## Supported Public Entrypoints
 

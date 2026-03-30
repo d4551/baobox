@@ -1,4 +1,5 @@
 import type { SchemaError } from '../error/errors.js';
+import type { URLLike } from '../shared/url-like.js';
 import { Ref } from './resolve.js';
 import { CheckSchemaValue } from './core.js';
 import { HasBoolean, HasObject, HasString, IsArray, IsObject, IsSchemaObject, Keys, type SchemaContext, type XSchema } from './shared.js';
@@ -136,7 +137,7 @@ export class Stack {
 
   constructor(private readonly context: SchemaContext, private readonly schema: XSchema) {}
 
-  BaseURL(): URL {
+  BaseURL(): URLLike {
     return this.ids.reduce((result, schema) => {
       const id = schema['$id'];
       return typeof id === 'string' ? new URL(id, result.href) : result;

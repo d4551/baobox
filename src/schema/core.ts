@@ -10,10 +10,12 @@ import {
 import { IsObject, IsSchema, type SchemaContext, type XSchema } from './shared.js';
 
 function resolveReferencedSchema(context: SchemaContext, schema: XSchema, root: XSchema): XSchema | undefined {
-  const schemaRecord = schema as Record<string, unknown>;
+  if (!IsObject(schema)) {
+    return undefined;
+  }
   const refKeys = ['$ref', '$recursiveRef', '$dynamicRef'] as const;
   for (const key of refKeys) {
-    const value = schemaRecord[key];
+    const value = schema[key];
     const ref = typeof value === 'string' ? value : undefined;
     if (ref !== undefined) {
       return context[ref] ?? Ref(root, ref);

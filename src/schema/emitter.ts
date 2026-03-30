@@ -19,6 +19,7 @@ import {
   schemaUnknownField,
   schemaVariants,
 } from '../shared/schema-access.js';
+import { BASE64_FORMAT } from '../shared/format-constants.js';
 import { integerSchema, numberSchema, objectLikeSchema, stringSchema } from './emitter-base.js';
 import { emitAdvancedSchema } from './emitter-advanced.js';
 import { emitDerivedSchema } from './emitter-derived.js';
@@ -77,6 +78,8 @@ export interface JsonSchemaResult {
   definitions: Record<string, JsonSchema>;
 }
 
+const JSON_SCHEMA_DATE_TIME_FORMAT = 'date-time';
+
 export function Schema(schema: TSchema, options: JsonSchemaOptions = {}): JsonSchemaResult {
   const refs = new Map<string, TSchema>();
   const emitted = toJsonSchema(schema, refs, options);
@@ -123,7 +126,7 @@ function emitBuiltInSchema(
       const bytes = schema as TUint8Array;
       return opt({
         type: 'string',
-        contentEncoding: 'base64',
+        contentEncoding: BASE64_FORMAT,
         ...(bytes.minByteLength !== undefined ? { minLength: Math.ceil((bytes.minByteLength * 4) / 3) } : {}),
         ...(bytes.maxByteLength !== undefined ? { maxLength: Math.ceil((bytes.maxByteLength * 4) / 3) } : {}),
         $comment: 'Uint8Array runtime values are represented as base64 strings in emitted JSON Schema.',
@@ -142,7 +145,7 @@ function emitBuiltInSchema(
     case 'BigInt':
       return opt({ type: 'string', $comment: 'BigInt runtime value; no native JSON Schema equivalent.' });
     case 'Date':
-      return opt({ type: 'string', format: 'date-time', $comment: 'Date runtime instance; validated as native Date at runtime.' });
+      return opt({ type: 'string', format: JSON_SCHEMA_DATE_TIME_FORMAT, $comment: 'Date runtime instance; validated as native Date at runtime.' });
     case 'Literal':
       return opt({ const: schemaConst(schema) as string | number | boolean | null });
     case 'Void':

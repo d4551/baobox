@@ -10,7 +10,7 @@ import {
   ResultLeftInside,
   ResultRightInside,
 } from './root-constants.js';
-import { getKind, getLiteralConst, isLiteralValue } from './root-shared.js';
+import { getKind, getLiteralConst, isLiteralValue, isObjectValue } from './root-shared.js';
 import { Extends, ExtendsResult } from './extends.js';
 
 export class InvalidLiteralValue extends Error {
@@ -55,8 +55,9 @@ export function EnumValuesToUnion(values: readonly unknown[]): TSchema {
 }
 
 export function EnumToUnion(type: TSchema): TSchema {
-  const schema = type as TSchema & { values?: readonly unknown[]; enum?: readonly unknown[] };
-  const values = Array.isArray(schema.values) ? schema.values : Array.isArray(schema.enum) ? schema.enum : [];
+  const valuesSource = isObjectValue(type) ? type['values'] : undefined;
+  const enumSource = isObjectValue(type) ? type['enum'] : undefined;
+  const values = Array.isArray(valuesSource) ? valuesSource : Array.isArray(enumSource) ? enumSource : [];
   return EnumValuesToUnion(values);
 }
 

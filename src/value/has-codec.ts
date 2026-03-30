@@ -1,4 +1,14 @@
 import type { TSchema } from '../type/schema.js';
+import {
+  schemaDefinitions,
+  schemaInner,
+  schemaItem,
+  schemaKind,
+  schemaProperties,
+  schemaSchemaField,
+  schemaSchemaListField,
+  schemaVariants,
+} from '../shared/schema-access.js';
 
 export function HasCodec(schema: TSchema): boolean {
   return HasCodecInternal(schema, new Set());
@@ -8,8 +18,7 @@ function HasCodecInternal(schema: TSchema, visited: Set<TSchema>): boolean {
   if (visited.has(schema)) return false;
   visited.add(schema);
 
-  const s = schema as Record<string, unknown>;
-  const kind = s['~kind'] as string | undefined;
+  const kind = schemaKind(schema);
 
   switch (kind) {
     case 'Codec':
@@ -17,40 +26,35 @@ function HasCodecInternal(schema: TSchema, visited: Set<TSchema>): boolean {
     case 'Encode':
       return true;
     case 'Object': {
-      const props = s['properties'] as Record<string, TSchema> | undefined;
-      if (!props) return false;
-      return Object.values(props).some(p => HasCodecInternal(p, visited));
+      return Object.values(schemaProperties(schema)).some((property) => HasCodecInternal(property, visited));
     }
     case 'Array':
     case 'Optional':
     case 'Readonly':
     case 'Immutable':
     case 'Refine':
-      return HasCodecInternal(s['items'] as TSchema ?? s['item'] as TSchema, visited);
+      return HasCodecInternal(schemaSchemaField(schema, 'items') ?? schemaItem(schema) ?? schemaInner(schema) ?? schema, visited);
     case 'Tuple': {
-      const items = s['items'] as TSchema[] | undefined;
-      return items ? items.some(i => HasCodecInternal(i, visited)) : false;
+      return schemaSchemaListField(schema, 'items').some((item) => HasCodecInternal(item, visited));
     }
     case 'Union':
     case 'Intersect': {
-      const variants = s['variants'] as TSchema[] | undefined;
-      return variants ? variants.some(v => HasCodecInternal(v, visited)) : false;
+      return schemaVariants(schema).some((variant) => HasCodecInternal(variant, visited));
     }
     case 'Recursive':
-      return HasCodecInternal(s['schema'] as TSchema, visited);
+      return HasCodecInternal(schemaSchemaField(schema, 'schema') ?? schema, visited);
     case 'Cyclic': {
-      const defs = s['$defs'] as Record<string, TSchema> | undefined;
-      return defs ? Object.values(defs).some((entry) => HasCodecInternal(entry, visited)) : false;
+      return Object.values(schemaDefinitions(schema)).some((entry) => HasCodecInternal(entry, visited));
     }
     case 'Ref':
       return false;
     case 'Record':
-      return HasCodecInternal(s['value'] as TSchema, visited);
+      return HasCodecInternal(schemaSchemaField(schema, 'value') ?? schema, visited);
     case 'Generic':
-      return HasCodecInternal(s['expression'] as TSchema, visited);
+      return HasCodecInternal(schemaSchemaField(schema, 'expression') ?? schema, visited);
     case 'Call':
-      return HasCodecInternal(s['target'] as TSchema, visited)
-        || ((s['arguments'] as TSchema[] | undefined)?.some((entry) => HasCodecInternal(entry, visited)) ?? false);
+      return HasCodecInternal(schemaSchemaField(schema, 'target') ?? schema, visited)
+        || schemaSchemaListField(schema, 'arguments').some((entry) => HasCodecInternal(entry, visited));
     default:
       return false;
   }

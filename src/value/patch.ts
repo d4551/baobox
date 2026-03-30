@@ -1,5 +1,6 @@
 import type { DiffEdit } from './diff.js';
 import { Clone } from './clone.js';
+import { isPlainRecord, recordValue } from '../shared/runtime-guards.js';
 
 /** Apply a structural delta (DiffEdit[]) to a value */
 export function Patch<T>(value: T, edits: DiffEdit[]): T {
@@ -18,9 +19,9 @@ function applyEdit(root: unknown, edit: DiffEdit): void {
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i] as string;
     if (Array.isArray(current)) {
-      current = current[parseInt(seg, 10)];
-    } else if (typeof current === 'object' && current !== null) {
-      current = (current as Record<string, unknown>)[seg];
+      current = current[Number.parseInt(seg, 10)];
+    } else if (isPlainRecord(current)) {
+      current = recordValue(current, seg);
     } else {
       return;
     }
@@ -28,7 +29,7 @@ function applyEdit(root: unknown, edit: DiffEdit): void {
 
   const lastSeg = segments[segments.length - 1] as string;
   if (Array.isArray(current)) {
-    const idx = parseInt(lastSeg, 10);
+    const idx = Number.parseInt(lastSeg, 10);
     switch (edit.type) {
       case 'insert':
         current.splice(idx, 0, edit.value);
@@ -40,15 +41,14 @@ function applyEdit(root: unknown, edit: DiffEdit): void {
         current.splice(idx, 1);
         break;
     }
-  } else if (typeof current === 'object' && current !== null) {
-    const obj = current as Record<string, unknown>;
+  } else if (isPlainRecord(current)) {
     switch (edit.type) {
       case 'insert':
       case 'update':
-        obj[lastSeg] = edit.value;
+        current[lastSeg] = edit.value;
         break;
       case 'delete':
-        delete obj[lastSeg];
+        delete current[lastSeg];
         break;
     }
   }

@@ -1,4 +1,18 @@
-import type { Static, TSchema, TObject } from '../type/schema.js';
+import type { Static, TSchema } from '../type/schema.js';
+import {
+  schemaDefinitions,
+  schemaInner,
+  schemaItem,
+  schemaKind,
+  schemaProperties,
+  schemaSchemaField,
+  schemaSchemaListField,
+  schemaStringField,
+  schemaStringListField,
+  schemaUnknownField,
+  schemaVariants,
+} from '../shared/schema-access.js';
+import { isPlainRecord } from '../shared/runtime-guards.js';
 
 const NOT_HANDLED = Symbol('create.not-handled');
 
@@ -13,10 +27,8 @@ export function Create<T extends TSchema>(schema: T): Static<T> {
   return CreateInternal(schema, new Map()) as Static<T>;
 }
 
-function createPrimitiveValue(s: Record<string, unknown>): unknown | typeof NOT_HANDLED {
-  const kind = s['~kind'] as string | undefined;
-
-  switch (kind) {
+function createPrimitiveValue(schema: TSchema): unknown | typeof NOT_HANDLED {
+  switch (schemaKind(schema)) {
     case 'String': return '';
     case 'Number': return 0;
     case 'Integer': return 0;
@@ -24,7 +36,7 @@ function createPrimitiveValue(s: Record<string, unknown>): unknown | typeof NOT_
     case 'Null': return null;
     case 'BigInt': return 0n;
     case 'Date': return new globalThis.Date(0);
-    case 'Literal': return s['const'];
+    case 'Literal': return schemaUnknownField(schema, 'const');
     case 'Void':
     case 'Undefined':
     case 'Unknown':
@@ -41,99 +53,115 @@ function createPrimitiveValue(s: Record<string, unknown>): unknown | typeof NOT_
   }
 }
 
-function createStructuredValue(s: Record<string, unknown>, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
-  const kind = s['~kind'] as string | undefined;
-
-  switch (kind) {
-    case 'Array': return [];
-    case 'Tuple': {
-      const items = s['items'] as TSchema[];
-      return items.map((item) => CreateInternal(item, refs));
-    }
+function createStructuredValue(schema: TSchema, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  switch (schemaKind(schema)) {
+    case 'Array':
+      return [];
+    case 'Tuple':
+      return schemaSchemaListField(schema, 'items').map((item) => CreateInternal(item, refs));
     case 'Object': {
-      const obj: Record<string, unknown> = {};
-      const props = s['properties'] as Record<string, TSchema>;
-      const required = (s['required'] as string[]) ?? [];
-      const optionalKeys = new Set((s['optional'] as string[]) ?? []);
+      const result: Record<string, unknown> = {};
+      const properties = schemaProperties(schema);
+      const required = schemaStringListField(schema, 'required');
+      const optionalKeys = new Set(schemaStringListField(schema, 'optional'));
       for (const key of required) {
-        if (props[key]) obj[key] = CreateInternal(props[key], refs);
-      }
-      for (const [key, propSchema] of Object.entries(props)) {
-        if (!(key in obj) && !optionalKeys.has(key)) {
-          obj[key] = CreateInternal(propSchema, refs);
+        const propertySchema = properties[key];
+        if (propertySchema) {
+          result[key] = CreateInternal(propertySchema, refs);
         }
       }
-      return obj;
+      for (const [key, propertySchema] of Object.entries(properties)) {
+        if (!(key in result) && !optionalKeys.has(key)) {
+          result[key] = CreateInternal(propertySchema, refs);
+        }
+      }
+      return result;
     }
     case 'Record':
     case 'Partial':
       return {};
     case 'Union': {
-      const variants = s['variants'] as TSchema[];
-      return variants.length > 0 ? CreateInternal(variants[0] as TSchema, refs) : undefined;
+      const variants = schemaVariants(schema);
+      return variants.length > 0 ? CreateInternal(variants[0]!, refs) : undefined;
     }
     case 'Intersect': {
-      const variants = s['variants'] as TSchema[];
-      let result = {};
-      for (const variant of variants) {
-        const v = CreateInternal(variant, refs);
-        if (typeof v === 'object' && v !== null) result = { ...result, ...v };
+      let result: Record<string, unknown> = {};
+      for (const variant of schemaVariants(schema)) {
+        const nextValue = CreateInternal(variant, refs);
+        if (isPlainRecord(nextValue)) {
+          result = { ...result, ...nextValue };
+        }
       }
       return result;
     }
-    case 'Optional': return undefined;
-    case 'Readonly': return CreateInternal(s['item'] as TSchema, refs);
+    case 'Optional':
+      return undefined;
+    case 'Readonly': {
+      const itemSchema = schemaItem(schema);
+      return itemSchema ? CreateInternal(itemSchema, refs) : undefined;
+    }
     case 'Enum': {
-      const values = s['values'] as string[];
+      const values = schemaStringListField(schema, 'values');
       return values.length > 0 ? values[0] : '';
     }
     case 'Required': {
-      const obj = s['object'] as TObject;
-      const result: Record<string, unknown> = {};
-      for (const [key, propSchema] of Object.entries(obj.properties as Record<string, TSchema>)) {
-        result[key] = CreateInternal(propSchema, refs);
+      const objectSchema = schemaSchemaField(schema, 'object');
+      if (objectSchema === undefined) {
+        return {};
       }
-      return result;
+      return Object.fromEntries(
+        Object.entries(schemaProperties(objectSchema)).map(([key, propertySchema]) => [key, CreateInternal(propertySchema, refs)]),
+      );
     }
     default:
       return NOT_HANDLED;
   }
 }
 
-function createReferenceValue(s: Record<string, unknown>, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
-  const kind = s['~kind'] as string | undefined;
-
-  switch (kind) {
+function createReferenceValue(schema: TSchema, refs: Map<string, TSchema>): unknown | typeof NOT_HANDLED {
+  switch (schemaKind(schema)) {
     case 'Ref': {
-      const target = refs.get(s['name'] as string);
+      const target = refs.get(schemaStringField(schema, 'name') ?? '');
       return target ? CreateInternal(target, refs) : undefined;
     }
     case 'Recursive': {
+      const name = schemaStringField(schema, 'name');
+      const target = schemaSchemaField(schema, 'schema');
+      if (!name || target === undefined) return NOT_HANDLED;
       const nextRefs = new Map(refs);
-      nextRefs.set(s['name'] as string, s['schema'] as TSchema);
-      return CreateInternal(s['schema'] as TSchema, nextRefs);
+      nextRefs.set(name, target);
+      return CreateInternal(target, nextRefs);
     }
     case 'Decode':
-    case 'Encode':
-      return CreateInternal(s['inner'] as TSchema, refs);
+    case 'Encode': {
+      const inner = schemaInner(schema);
+      return inner ? CreateInternal(inner, refs) : undefined;
+    }
+    case 'Cyclic': {
+      const refName = schemaStringField(schema, '$ref');
+      const defs = schemaDefinitions(schema);
+      const target = refName ? defs[refName] : undefined;
+      return target ? CreateInternal(target, refs) : undefined;
+    }
     default:
       return NOT_HANDLED;
   }
 }
 
 function CreateInternal(schema: TSchema, refs: Map<string, TSchema>): unknown {
-  const s = schema as Record<string, unknown>;
+  const defaultValue = schemaUnknownField(schema, 'default');
+  if (defaultValue !== undefined) {
+    return cloneValue(defaultValue);
+  }
 
-  if (s['default'] !== undefined) return cloneValue(s['default']);
-
-  const primitive = createPrimitiveValue(s);
+  const primitive = createPrimitiveValue(schema);
   if (primitive !== NOT_HANDLED) {
     return primitive;
   }
-  const structured = createStructuredValue(s, refs);
+  const structured = createStructuredValue(schema, refs);
   if (structured !== NOT_HANDLED) {
     return structured;
   }
-  const reference = createReferenceValue(s, refs);
+  const reference = createReferenceValue(schema, refs);
   return reference !== NOT_HANDLED ? reference : undefined;
 }
