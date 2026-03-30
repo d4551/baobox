@@ -7,7 +7,7 @@ import {
 } from '../shared/bytes.js';
 
 type FastCheck = (value: unknown) => boolean;
-type FastStrategy = 'bun-native' | 'bun-ffi';
+type FastStrategy = 'bun-native' | 'bun-native-const' | 'bun-ffi';
 
 export interface BunFastPathResult {
   fn: FastCheck;
@@ -178,13 +178,20 @@ function compilePlan(schema: TSchema): BunFastPlan | null {
     }
     case 'Refine': {
       if (current['~uint8arrayCodec'] === true) {
+        const constBase64 = current.constBase64 as string | undefined;
+        if (constBase64 !== undefined) {
+          return {
+            fn: (value) => typeof value === 'string' && value === constBase64,
+            strategy: 'bun-native-const',
+          };
+        }
         return {
           fn: (value) => isUint8ArrayBase64String(
             value,
             current.minByteLength as number | undefined,
             current.maxByteLength as number | undefined,
             current.constBytes as Uint8Array | undefined,
-            current.constBase64 as string | undefined,
+            constBase64,
           ),
           strategy: 'bun-native',
         };

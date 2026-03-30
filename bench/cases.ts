@@ -47,13 +47,17 @@ const localBinaryCodec = Baobox.Uint8ArrayCodec({
   maxByteLength: 8,
   constBytes: new Uint8Array([10, 20, 30, 40, 50, 60, 70, 80]),
 });
+const binaryEncoded = BaoboxEncode(localBinaryCodec, new Uint8Array([10, 20, 30, 40, 50, 60, 70, 80])) as string;
 
-const upstreamBinaryCodec = TypeBox.Codec(TypeBox.String({ format: 'base64' }))
-  .Decode((input) => decodeUint8ArrayBase64(input))
-  .Encode((input) => encodeUint8ArrayBase64(input));
+const upstreamBinaryCodec = TypeBox.Refine(
+  TypeBox.Codec(TypeBox.String({ format: 'base64' }))
+    .Decode((input) => decodeUint8ArrayBase64(input))
+    .Encode((input) => encodeUint8ArrayBase64(input)),
+  (input) => typeof input === 'string' && input === binaryEncoded,
+  'Expected the canonical fixed-size binary payload',
+);
 
 const binaryValue = new Uint8Array([10, 20, 30, 40, 50, 60, 70, 80]);
-const binaryEncoded = BaoboxEncode(localBinaryCodec, binaryValue) as string;
 
 export const validationCases = [
   {

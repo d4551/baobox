@@ -42,7 +42,6 @@ function repairObject(schema: TObject, value: unknown, refs: ReferenceMap): Reco
     return Create(schema) as Record<string, unknown>;
   }
 
-  const required = schema.required ?? [];
   const optional = new Set((schema.optional ?? []).map(String));
   const objectValue = value as Record<string, unknown>;
   const result: Record<string, unknown> = {};
@@ -55,7 +54,7 @@ function repairObject(schema: TObject, value: unknown, refs: ReferenceMap): Reco
       } else {
         result[key] = repairInternal(propertySchema, propertyValue, refs);
       }
-    } else if (!optional.has(key) || required.includes(key)) {
+    } else if (!optional.has(key)) {
       result[key] = Create(propertySchema);
     }
   }
