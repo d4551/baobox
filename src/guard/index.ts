@@ -1,9 +1,8 @@
-export * as EmitGuard from './guard.js';
-export * as GlobalsGuard from './guard.js';
-export * as NativeGuard from './guard.js';
+export * as EmitGuard from '../type/guards.js';
+export * as GlobalsGuard from '../type/guards.js';
+export * as NativeGuard from '../type/guards.js';
 
-export * from './guard.js';
-export * as Guard from './guard.js';
-import * as Guard from './guard.js';
+export * as Guard from '../type/guards.js';
+import * as Guard from '../type/guards.js';
 
 export default Guard;

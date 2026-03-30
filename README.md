@@ -53,11 +53,10 @@ Requires Bun ≥ 1.3.11 and TypeScript ≥ 6.0.
 
 **Bun-native.** Bun drives the runtime and package build, while TypeScript emits declaration files for consumers. The package ships as ESM with `.js` extensions for maximum Bun compatibility.
 
-**Minimal kernel.** Only the most commonly used schema types are implemented in v1. Advanced features like codec transforms and JIT compilation are deferred to later phases, while local recursive refs are supported via `Recursive()` + `Ref()`.
+**Parity-focused kernel.** Baobox stays Bun-first, but now exposes a broader TypeBox-style surface including codec builders, compile helpers, and generic/extends-style type actions while keeping the package ESM-only and TypeScript-native.
 
 **Explicit non-goals.** v1 deliberately excludes:
 - Full JSON Schema 2020-12 compliance
-- Codec/encode/decode transforms
 - Fastify / tRPC / other framework adapters
 - Any runtime other than Bun
 
@@ -185,8 +184,8 @@ bun run typecheck   # Type check
 | Package size | ~3 MB | Minimal (tree-shakeable) |
 | Static inference | Yes | Yes |
 | JSON Schema emit | Yes | Yes |
-| Codec/transforms | Yes | Not yet |
-| JIT compilation | `Compile()` | Not yet |
+| Codec/transforms | Yes | Yes |
+| JIT compilation | `Compile()` | Yes |
 
 ## Roadmap
 

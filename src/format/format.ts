@@ -4,109 +4,108 @@ import {
   validateFormat,
 } from '../shared/utils.js';
 
-export { FormatRegistry, KNOWN_FORMATS };
-
-export function Check(value: string, format: string): boolean {
-  return validateFormat(value, format);
+function builtinValidator(name: string): ((value: string) => boolean) | undefined {
+  return KNOWN_FORMATS.has(name) ? (value: string) => validateFormat(value, name) : undefined;
 }
 
-export const Validate = Check;
-
-export function IsKnownFormat(format: string): boolean {
-  return KNOWN_FORMATS.has(format);
+function customValidator(name: string): ((value: string) => boolean) | undefined {
+  return FormatRegistry.Get(name);
 }
 
-export function IsBase64(value: string): boolean {
-  return Check(value, 'base64');
+export function Get(name: string): ((value: string) => boolean) | undefined {
+  return customValidator(name) ?? builtinValidator(name);
 }
 
-export function IsCreditCard(value: string): boolean {
-  return Check(value, 'creditcard');
+export function Set(name: string, validator: (value: string) => boolean): void {
+  FormatRegistry.Set(name, validator);
 }
 
-export function IsDate(value: string): boolean {
-  return Check(value, 'date');
+export function Has(name: string): boolean {
+  return Get(name) !== undefined;
 }
 
-export function IsDateTime(value: string): boolean {
-  return Check(value, 'datetime');
+export function Clear(): void {
+  FormatRegistry.Clear();
 }
 
-export function IsDuration(value: string): boolean {
-  return Check(value, 'duration');
+export function Reset(): void {
+  Clear();
 }
 
-export function IsEmail(value: string): boolean {
-  return Check(value, 'email');
+export function Entries(): Array<[string, (value: string) => boolean]> {
+  const builtins = Array.from(
+    KNOWN_FORMATS,
+    (name) => [name, builtinValidator(name) as (value: string) => boolean] as [string, (value: string) => boolean],
+  );
+  const customs = FormatRegistry.Entries();
+  const merged = new Map<string, (value: string) => boolean>(builtins);
+
+  for (const [name, validator] of customs) {
+    merged.set(name, validator);
+  }
+
+  return Array.from(merged.entries());
 }
 
-export function IsHex(value: string): boolean {
-  return Check(value, 'hex');
+export function Test(format: string, value: string): boolean {
+  const validator = Get(format);
+  return validator ? validator(value) : false;
 }
 
-export function IsHexColor(value: string): boolean {
-  return Check(value, 'hexcolor');
+export function IsDate(value: string): boolean { return Test('date', value); }
+export function IsDateTime(value: string): boolean { return Test('datetime', value); }
+export function IsDuration(value: string): boolean { return Test('duration', value); }
+export function IsEmail(value: string): boolean { return Test('email', value); }
+export function IsHostname(value: string): boolean { return Test('hostname', value); }
+export function IsIPv4(value: string): boolean { return Test('ipv4', value); }
+export function IsIPv6(value: string): boolean { return Test('ipv6', value); }
+export function IsIdnEmail(value: string): boolean { return IsEmail(value); }
+export function IsIdnHostname(value: string): boolean { return IsHostname(value); }
+export function IsIri(value: string): boolean { return IsUri(value); }
+export function IsIriReference(value: string): boolean { return IsUriReference(value); }
+export function IsJsonPointer(value: string): boolean { return value === '' || /^\/(?:[^/~]|~0|~1)*?(?:\/(?:[^/~]|~0|~1)*?)*$/.test(value); }
+export function IsJsonPointerUriFragment(value: string): boolean { return value.startsWith('#') && IsJsonPointer(value.slice(1)); }
+export function IsRegex(value: string): boolean { return Test('regex', value); }
+export function IsRelativeJsonPointer(value: string): boolean { return /^(0|[1-9]\d*)(#|(?:\/(?:[^/~]|~0|~1)*?)*)$/.test(value); }
+export function IsTime(value: string): boolean { return Test('time', value); }
+export function IsUri(value: string): boolean { return Test('uri', value); }
+export function IsUriReference(value: string): boolean {
+  return IsUri(value) || /^(?:[A-Za-z][A-Za-z\d+.-]*:|\/|\.|#|\?)/.test(value);
 }
-
-export function IsHostname(value: string): boolean {
-  return Check(value, 'hostname');
-}
-
-export function IsIp(value: string): boolean {
-  return Check(value, 'ip');
-}
-
-export function IsIpv4(value: string): boolean {
-  return Check(value, 'ipv4');
-}
-
-export function IsIpv6(value: string): boolean {
-  return Check(value, 'ipv6');
-}
-
-export function IsJson(value: string): boolean {
-  return Check(value, 'json');
-}
-
-export function IsRegex(value: string): boolean {
-  return Check(value, 'regex');
-}
-
-export function IsTime(value: string): boolean {
-  return Check(value, 'time');
-}
-
-export function IsUri(value: string): boolean {
-  return Check(value, 'uri');
-}
-
-export function IsUuid(value: string): boolean {
-  return Check(value, 'uuid');
-}
+export function IsUriTemplate(value: string): boolean { return /^(?:[^{}]|\{[^{}]+\})+$/.test(value); }
+export function IsUrl(value: string): boolean { return IsUri(value); }
+export function IsUuid(value: string): boolean { return Test('uuid', value); }
 
 const Format = {
-  Check,
-  Validate,
-  IsBase64,
-  IsCreditCard,
+  Clear,
+  Entries,
+  Get,
+  Has,
   IsDate,
   IsDateTime,
   IsDuration,
   IsEmail,
-  IsHex,
-  IsHexColor,
   IsHostname,
-  IsIp,
-  IsIpv4,
-  IsIpv6,
-  IsJson,
-  IsKnownFormat,
+  IsIPv4,
+  IsIPv6,
+  IsIdnEmail,
+  IsIdnHostname,
+  IsIri,
+  IsIriReference,
+  IsJsonPointer,
+  IsJsonPointerUriFragment,
   IsRegex,
+  IsRelativeJsonPointer,
   IsTime,
   IsUri,
+  IsUriReference,
+  IsUriTemplate,
+  IsUrl,
   IsUuid,
-  FormatRegistry,
-  KNOWN_FORMATS,
+  Reset,
+  Set,
+  Test,
 };
 
+export { Format };
 export default Format;

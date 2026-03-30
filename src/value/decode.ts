@@ -1,4 +1,5 @@
 import type { TSchema } from '../type/schema.js';
+import { Instantiate } from '../type/instantiation.js';
 
 /** Run decode callbacks depth-first on a value */
 export function Decode(schema: TSchema, value: unknown): unknown {
@@ -15,6 +16,11 @@ function DecodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSche
       const decodeFn = s['decode'] as (v: unknown) => unknown;
       const decodedInner = DecodeInternal(inner, value, refs);
       return decodeFn(decodedInner);
+    }
+    case 'Codec': {
+      const inner = s['inner'] as TSchema;
+      const codec = s['codec'] as { decode: (input: unknown) => unknown };
+      return codec.decode(DecodeInternal(inner, value, refs));
     }
     case 'Object': {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
@@ -49,10 +55,31 @@ function DecodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSche
     }
     case 'Optional':
     case 'Readonly':
+    case 'Immutable':
+      return value === undefined ? value : DecodeInternal((s['item'] as TSchema) ?? (s['inner'] as TSchema), value, refs);
+    case 'Refine':
       return value === undefined ? value : DecodeInternal(s['item'] as TSchema, value, refs);
+    case 'Generic':
+      return DecodeInternal(s['expression'] as TSchema, value, refs);
+    case 'Infer':
+      return DecodeInternal(s['extends'] as TSchema, value, refs);
+    case 'Call': {
+      const instantiated = Instantiate({}, schema);
+      return instantiated === schema ? value : DecodeInternal(instantiated, value, refs);
+    }
+    case 'Cyclic': {
+      const defs = s['$defs'] as Record<string, TSchema>;
+      const nextRefs = new Map(refs);
+      for (const [key, definition] of Object.entries(defs)) {
+        nextRefs.set(key, definition);
+      }
+      const target = defs[s['$ref'] as string];
+      return target === undefined ? value : DecodeInternal(target, value, nextRefs);
+    }
     case 'Recursive': {
       const nextRefs = new Map(refs);
       nextRefs.set(s['name'] as string, s['schema'] as TSchema);
+      nextRefs.set('#', s['schema'] as TSchema);
       return DecodeInternal(s['schema'] as TSchema, value, nextRefs);
     }
     case 'Ref': {
@@ -61,6 +88,10 @@ function DecodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSche
     }
     case 'Encode':
       return DecodeInternal(s['inner'] as TSchema, value, refs);
+    case 'Base':
+      return typeof s['Convert'] === 'function'
+        ? (s['Convert'] as (input: unknown) => unknown)(value)
+        : value;
     default:
       return value;
   }

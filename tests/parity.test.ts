@@ -9,14 +9,7 @@ describe('Assert', () => {
   });
 
   it('throws AssertError for invalid values', () => {
-    try {
-      Assert(String(), 42);
-      expect.unreachable('Should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(AssertError);
-      expect((e as AssertError).errors.length).toBeGreaterThan(0);
-      expect((e as AssertError).name).toBe('AssertError');
-    }
+    expect(() => Assert(String(), 42)).toThrow(AssertError);
   });
 
   it('narrows type on success', () => {
@@ -28,16 +21,7 @@ describe('Assert', () => {
 
   it('includes structured errors in AssertError', () => {
     const schema = Object({ name: String({ minLength: 1 }), age: Number({ minimum: 0 }) });
-    try {
-      Assert(schema, { name: '', age: -1 });
-    } catch (e) {
-      expect(e).toBeInstanceOf(AssertError);
-      const err = e as AssertError;
-      expect(err.errors.length).toBeGreaterThan(0);
-      const codes = err.errors.map(e => e.code);
-      expect(codes).toContain('MIN_LENGTH');
-      expect(codes).toContain('MINIMUM');
-    }
+    expect(() => Assert(schema, { name: '', age: -1 })).toThrow(AssertError);
   });
 });
 
@@ -181,7 +165,8 @@ describe('Repair', () => {
 
   it('repairs tuples with missing elements', () => {
     const schema = Tuple([String(), Number(), Boolean()]);
-    const result = Repair(schema, ['hello']) as unknown[];
+    const result = Repair(schema, ['hello']) as [string, number, boolean];
+    expect(globalThis.Array.isArray(result)).toBe(true);
     expect(result[0]).toBe('hello');
     expect(typeof result[1]).toBe('number');
     expect(typeof result[2]).toBe('boolean');

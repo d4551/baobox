@@ -6,10 +6,11 @@
       "name": "baobox",
       "devDependencies": {
         "bun-types": "latest",
+        "typebox": "^1.1.9",
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "typescript": ">=5.0.0",
+        "typescript": ">=6.0.0",
       },
     },
   },
@@ -17,6 +18,8 @@
     "@types/node": ["@types/node@25.5.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw=="],
 
     "bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
+
+    "typebox": ["typebox@1.1.9", "", {}, "sha512-Bqdf4iLNO4pnVePdQkzkvnEFxz4Htn5g7nVBGIpNC1rDq5ye/qxXytJPgmT+7MRKJ3k03RTNU03wtJj4V9SJzA=="],
 
     "typescript": ["typescript@6.0.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ=="],
 

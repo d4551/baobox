@@ -12,6 +12,7 @@ function HasCodecInternal(schema: TSchema, visited: Set<TSchema>): boolean {
   const kind = s['~kind'] as string | undefined;
 
   switch (kind) {
+    case 'Codec':
     case 'Decode':
     case 'Encode':
       return true;
@@ -23,6 +24,8 @@ function HasCodecInternal(schema: TSchema, visited: Set<TSchema>): boolean {
     case 'Array':
     case 'Optional':
     case 'Readonly':
+    case 'Immutable':
+    case 'Refine':
       return HasCodecInternal(s['items'] as TSchema ?? s['item'] as TSchema, visited);
     case 'Tuple': {
       const items = s['items'] as TSchema[] | undefined;
@@ -35,10 +38,19 @@ function HasCodecInternal(schema: TSchema, visited: Set<TSchema>): boolean {
     }
     case 'Recursive':
       return HasCodecInternal(s['schema'] as TSchema, visited);
+    case 'Cyclic': {
+      const defs = s['$defs'] as Record<string, TSchema> | undefined;
+      return defs ? Object.values(defs).some((entry) => HasCodecInternal(entry, visited)) : false;
+    }
     case 'Ref':
       return false;
     case 'Record':
       return HasCodecInternal(s['value'] as TSchema, visited);
+    case 'Generic':
+      return HasCodecInternal(s['expression'] as TSchema, visited);
+    case 'Call':
+      return HasCodecInternal(s['target'] as TSchema, visited)
+        || ((s['arguments'] as TSchema[] | undefined)?.some((entry) => HasCodecInternal(entry, visited)) ?? false);
     default:
       return false;
   }

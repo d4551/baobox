@@ -5,6 +5,7 @@
     "module": "Preserve",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
+    "types": ["bun-types"],
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "verbatimModuleSyntax": true,

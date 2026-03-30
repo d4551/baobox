@@ -75,6 +75,24 @@ export type {
   TParameter,
   TThis,
 } from './actions.js';
+export type {
+  TCodec,
+  TImmutable,
+  TRefine,
+  TRefinement,
+  TCall,
+  TCyclic,
+  TGeneric,
+  TInfer,
+} from './extensions.js';
+export type {
+  TInstantiate,
+  TProperties,
+} from './instantiation.js';
+export type {
+  TExtends,
+  TExtendsResult,
+} from './extends.js';
 
 export {
   String,
@@ -168,6 +186,33 @@ export {
   This,
   Import,
 } from './actions.js';
+export {
+  Codec,
+  DecodeBuilder,
+  EncodeBuilder,
+  IsCodec,
+  Immutable,
+  IsImmutable,
+  Refine,
+  IsRefine,
+  Base,
+  IsBase,
+  Call,
+  IsCall,
+  Cyclic,
+  IsCyclic,
+  Generic,
+  IsGeneric,
+  Infer,
+  IsInfer,
+} from './extensions.js';
+export {
+  Instantiate,
+} from './instantiation.js';
+export {
+  Extends,
+  ExtendsResult,
+} from './extends.js';
 
 export * from './guards.js';
 

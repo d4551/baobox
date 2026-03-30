@@ -1,4 +1,6 @@
 import type { TObject, TSchema } from '../type/schema.js';
+import { Instantiate } from '../type/instantiation.js';
+import { String as TypeString } from '../type/primitives.js';
 import { CheckInternal } from '../value/check.js';
 import {
   deriveObjectSchema,
@@ -41,7 +43,7 @@ function ValidateErrors(schema: TSchema, value: unknown, path: string[], refs: M
         errors.push({ path: p, message: `String length must be at most ${s.maxLength}`, code: 'MAX_LENGTH' });
       if (s.pattern !== undefined && !new RegExp(s.pattern as string).test(value))
         errors.push({ path: p, message: `String must match pattern ${s.pattern}`, code: 'PATTERN' });
-      if (typeof s.format === 'string' && !CheckInternal({ '~kind': 'String', format: s.format } as TSchema, value, new Map()))
+      if (typeof s.format === 'string' && !CheckInternal(TypeString({ format: s.format }), value, new Map()))
         errors.push({ path: p, message: `String must match format ${s.format}`, code: 'FORMAT' });
       break;
     }
@@ -162,6 +164,8 @@ function ValidateErrors(schema: TSchema, value: unknown, path: string[], refs: M
     case 'Intersect': { const s = schema as TSchema & { variants: TSchema[] }; for (const v of s.variants) errors.push(...ValidateErrors(v, value, path, refs)); break; }
     case 'Optional': { const s = schema as TSchema & { item: TSchema }; if (value !== undefined) errors.push(...ValidateErrors(s.item, value, path, refs)); break; }
     case 'Readonly': { const s = schema as TSchema & { item: TSchema }; errors.push(...ValidateErrors(s.item, value, path, refs)); break; }
+    case 'Immutable': { const s = schema as TSchema & { item: TSchema }; errors.push(...ValidateErrors(s.item, value, path, refs)); break; }
+    case 'Codec': { const s = schema as TSchema & { inner: TSchema }; errors.push(...ValidateErrors(s.inner, value, path, refs)); break; }
     case 'Enum': { const s = schema as TSchema & { values: string[] }; if (typeof value !== 'string') { errors.push({ path: p, message: `Expected string, got ${typeof value}`, code: 'INVALID_TYPE' }); break; } if (!s.values.includes(value)) errors.push({ path: p, message: `Value must be one of: ${s.values.join(', ')}`, code: 'ENUM' }); break; }
     case 'Recursive': { const s = schema as TSchema & { name: string; schema: TSchema }; const nr = new Map(refs); nr.set(s.name, s.schema); nr.set('#', s.schema); errors.push(...ValidateErrors(s.schema, value, path, nr)); break; }
     case 'Ref': { const s = schema as TSchema & { name: string }; const t = refs.get(s.name); if (t) errors.push(...ValidateErrors(t, value, path, refs)); else errors.push({ path: p, message: 'Unresolved schema reference', code: 'UNRESOLVED_REF' }); break; }
@@ -190,12 +194,57 @@ function ValidateErrors(schema: TSchema, value: unknown, path: string[], refs: M
     case 'Identifier': { if (typeof value !== 'string') errors.push({ path: p, message: `Expected string, got ${typeof value}`, code: 'INVALID_TYPE' }); else if (!/^[$A-Z_a-z][$\w]*$/.test(value)) errors.push({ path: p, message: 'Expected valid identifier string', code: 'IDENTIFIER' }); break; }
     case 'Parameter': { const s = schema as TSchema & { equals: TSchema }; errors.push(...ValidateErrors(s.equals, value, path, refs)); break; }
     case 'This': { const target = refs.get('#'); if (target) errors.push(...ValidateErrors(target, value, path, refs)); else errors.push({ path: p, message: 'Unresolved self reference', code: 'UNRESOLVED_REF' }); break; }
+    case 'Generic': { const s = schema as TSchema & { expression: TSchema }; errors.push(...ValidateErrors(s.expression, value, path, refs)); break; }
+    case 'Call': {
+      const instantiated = Instantiate({}, schema);
+      if (instantiated === schema) errors.push({ path: p, message: 'Unable to instantiate call schema', code: 'CALL' });
+      else errors.push(...ValidateErrors(instantiated, value, path, refs));
+      break;
+    }
+    case 'Infer': { const s = schema as TSchema & { extends: TSchema }; errors.push(...ValidateErrors(s.extends, value, path, refs)); break; }
     case 'Promise': { if (!isPromiseLike(value)) errors.push({ path: p, message: 'Expected Promise-like value', code: 'INVALID_TYPE' }); break; }
     case 'Iterator': { if (!isIteratorLike(value)) errors.push({ path: p, message: 'Expected iterator value', code: 'INVALID_TYPE' }); break; }
     case 'AsyncIterator': { if (!isAsyncIteratorLike(value)) errors.push({ path: p, message: 'Expected async iterator value', code: 'INVALID_TYPE' }); break; }
     case 'Function': { if (typeof value !== 'function') errors.push({ path: p, message: `Expected function, got ${typeof value}`, code: 'INVALID_TYPE' }); break; }
     case 'Constructor': { if (typeof value !== 'function' || !('prototype' in value)) errors.push({ path: p, message: 'Expected constructor function', code: 'INVALID_TYPE' }); break; }
     case 'Symbol': { if (typeof value !== 'symbol') errors.push({ path: p, message: `Expected symbol, got ${typeof value}`, code: 'INVALID_TYPE' }); break; }
+    case 'Base': {
+      const base = schema as TSchema & { Check?: (input: unknown) => boolean; Errors?: (input: unknown) => object[] };
+      if (typeof base.Check === 'function' && !base.Check(value)) {
+        if (typeof base.Errors === 'function') {
+          const details = base.Errors(value);
+          if (details.length > 0) {
+            errors.push({ path: p, message: 'Base validation failed', code: 'BASE' });
+            break;
+          }
+        }
+        errors.push({ path: p, message: 'Base validation failed', code: 'BASE' });
+      }
+      break;
+    }
+    case 'Refine': {
+      const s = schema as TSchema & { item: TSchema; '~refine': Array<{ refine: (value: unknown) => boolean; message: string }> };
+      const innerErrors = ValidateErrors(s.item, value, path, refs);
+      if (innerErrors.length > 0) { for (const e of innerErrors) errors.push(e); break; }
+      for (const r of s['~refine']) {
+        if (r && !r.refine(value)) {
+          errors.push({ path: p, message: r.message, code: 'REFINE' });
+        }
+      }
+      break;
+    }
+    case 'Cyclic': {
+      const s = schema as TSchema & { $defs: Record<string, TSchema>; $ref: string };
+      const nextRefs = new Map(refs);
+      for (const [name, def] of Object.entries(s.$defs)) {
+        nextRefs.set(name, def);
+      }
+      const target = s.$defs[s.$ref];
+      if (target) {
+        for (const e of ValidateErrors(target, value, path, nextRefs)) errors.push(e);
+      }
+      break;
+    }
     case 'Decode':
     case 'Encode': { errors.push(...ValidateErrors((schema as Record<string, unknown>)['inner'] as TSchema, value, path, refs)); break; }
     case 'Awaited': { const s = schema as TSchema & { promise: TSchema & { item: TSchema } }; errors.push(...ValidateErrors(s.promise.item, value, path, refs)); break; }

@@ -1,6 +1,5 @@
 export * from './type/index.js';
 export * from './error/index.js';
-export * from './schema/index.js';
 export * as Type from './typebox.js';
 import * as Type from './typebox.js';
 
@@ -20,6 +19,7 @@ export {
   Assert,
   AssertError,
   Diff,
+  Errors,
   Patch,
   Pipeline,
   Pointer,

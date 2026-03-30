@@ -78,3 +78,11 @@ export function IsReadonlyType(schema: TSchema): boolean { return IsReadonly(sch
 export function IsIdentifier(schema: TSchema): boolean { return isKind(schema, 'Identifier'); }
 export function IsParameter(schema: TSchema): boolean { return isKind(schema, 'Parameter'); }
 export function IsThis(schema: TSchema): boolean { return isKind(schema, 'This'); }
+export function IsCodec(schema: TSchema): boolean { return isKind(schema, 'Codec'); }
+export function IsImmutable(schema: TSchema): boolean { return isKind(schema, 'Immutable'); }
+export function IsRefine(schema: TSchema): boolean { return isKind(schema, 'Refine'); }
+export function IsBase(schema: TSchema): boolean { return isKind(schema, 'Base'); }
+export function IsCall(schema: TSchema): boolean { return isKind(schema, 'Call'); }
+export function IsCyclic(schema: TSchema): boolean { return isKind(schema, 'Cyclic'); }
+export function IsGeneric(schema: TSchema): boolean { return isKind(schema, 'Generic'); }
+export function IsInfer(schema: TSchema): boolean { return isKind(schema, 'Infer'); }
