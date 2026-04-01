@@ -68,6 +68,36 @@ const API_TRANSFORMS: ApiTransform[] = [
     replacement: 'Assert(',
     note: 'Value.Assert → Assert (add import from baobox or baobox/value)',
   },
+  {
+    pattern: /Value\.Diff\(/g,
+    replacement: 'Diff(',
+    note: 'Value.Diff → Diff (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Patch\(/g,
+    replacement: 'Patch(',
+    note: 'Value.Patch → Patch (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Hash\(/g,
+    replacement: 'Hash(',
+    note: 'Value.Hash → Hash (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Equal\(/g,
+    replacement: 'Equal(',
+    note: 'Value.Equal → Equal (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Clone\(/g,
+    replacement: 'Clone(',
+    note: 'Value.Clone → Clone (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Repair\(/g,
+    replacement: 'Repair(',
+    note: 'Value.Repair → Repair (add import from baobox or baobox/value)',
+  },
 ];
 
 const MANUAL_REVIEW_PATTERNS = [

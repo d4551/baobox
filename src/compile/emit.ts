@@ -9,10 +9,21 @@ import type {
   TRecord,
   TSchema,
   TString,
+  TTuple,
   TUint8Array,
   TUnion,
 } from '../type/schema.js';
-import { schemaItem, schemaKind, schemaSchemaField } from '../shared/schema-access.js';
+import {
+  schemaBooleanField,
+  schemaBooleanOrSchemaField,
+  schemaItem,
+  schemaKind,
+  schemaOptionalKeys,
+  schemaPatternProperties,
+  schemaSchemaField,
+  schemaSchemaListField,
+} from '../shared/schema-access.js';
+import { getPatternPropertySchemas } from '../shared/utils.js';
 
 export type EmitSchema = (schema: TSchema, valueExpr: string) => string;
 
@@ -56,7 +67,44 @@ function emitArrayCheck(
   const checks: string[] = [`Array.isArray(${valueExpr})`];
   if (schema.minItems !== undefined) checks.push(`${valueExpr}.length >= ${schema.minItems}`);
   if (schema.maxItems !== undefined) checks.push(`${valueExpr}.length <= ${schema.maxItems}`);
+  if (schema.uniqueItems) checks.push(`new Set(${valueExpr}).size === ${valueExpr}.length`);
   checks.push(`${valueExpr}.every(${itemVar} => ${emitSchema(schema.items, itemVar)})`);
+  if (schema.contains !== undefined) {
+    const containsVar = nextVar();
+    const containsCheck = emitSchema(schema.contains, containsVar);
+    if (schema.minContains !== undefined || schema.maxContains !== undefined) {
+      const countVar = nextVar();
+      const min = schema.minContains ?? 1;
+      const maxClause = schema.maxContains !== undefined ? ` && ${countVar} <= ${schema.maxContains}` : '';
+      checks.push(
+        `(function() { let ${countVar} = 0; for (const ${containsVar} of ${valueExpr}) { if (${containsCheck}) ${countVar}++; } return ${countVar} >= ${min}${maxClause}; }())`,
+      );
+    } else {
+      checks.push(`${valueExpr}.some(${containsVar} => ${containsCheck})`);
+    }
+  }
+  return checks.join(' && ');
+}
+
+function emitTupleCheck(
+  schema: TSchema,
+  valueExpr: string,
+  emitSchema: EmitSchema,
+): string {
+  const items = schemaSchemaListField(schema, 'items');
+  const additionalItems = schemaBooleanField(schema, 'additionalItems');
+  const checks: string[] = [`Array.isArray(${valueExpr})`];
+  const record = schema as Record<string, unknown>;
+  const minItems = typeof record.minItems === 'number' ? record.minItems : undefined;
+  const maxItems = typeof record.maxItems === 'number' ? record.maxItems : undefined;
+  if (minItems !== undefined) checks.push(`${valueExpr}.length >= ${minItems}`);
+  if (maxItems !== undefined) checks.push(`${valueExpr}.length <= ${maxItems}`);
+  if (additionalItems !== true) {
+    checks.push(`${valueExpr}.length <= ${items.length}`);
+  }
+  for (let i = 0; i < items.length; i++) {
+    checks.push(`(${valueExpr}.length <= ${i} || ${emitSchema(items[i]!, `${valueExpr}[${i}]`)})`);
+  }
   return checks.join(' && ');
 }
 
@@ -87,7 +135,7 @@ function emitRecordCheck(schema: TSchema, valueExpr: string, emitSchema: EmitSch
   return checks.join(' && ');
 }
 
-function emitObjectCheck(schema: TObject, valueExpr: string, emitSchema: EmitSchema): string {
+function emitObjectCheck(schema: TObject, valueExpr: string, emitSchema: EmitSchema, nextVar: () => string): string {
   const checks: string[] = [
     `typeof ${valueExpr} === 'object'`,
     `${valueExpr} !== null`,
@@ -95,12 +143,40 @@ function emitObjectCheck(schema: TObject, valueExpr: string, emitSchema: EmitSch
   ];
   const required = schema.required ?? Object.keys(schema.properties);
   const optional = new Set((schema.optional ?? []).map(String));
+  const additionalProperties = schemaBooleanOrSchemaField(schema as TSchema, 'additionalProperties');
+  const patternProperties = schemaPatternProperties(schema as TSchema);
+  const optionalKeys = new Set(schemaOptionalKeys(schema as TSchema));
+  const definedKeys = new Set(Object.keys(schema.properties));
 
   for (const key of required) {
     if (schema.properties[key] !== undefined && !optional.has(String(key))) {
       checks.push(`'${String(key)}' in ${valueExpr}`);
       checks.push(emitSchema(schema.properties[key], `${valueExpr}['${String(key)}']`));
     }
+  }
+
+  // Emit optional property type checks (when present, must match schema)
+  for (const key of optionalKeys) {
+    if (schema.properties[key] !== undefined) {
+      checks.push(`(${valueExpr}['${String(key)}'] === undefined || ${emitSchema(schema.properties[key], `${valueExpr}['${String(key)}']`)})`);
+    }
+  }
+
+  // Handle additionalProperties constraint
+  if (additionalProperties === false) {
+    const allowedKeys = JSON.stringify([...definedKeys]);
+    const entryVar = nextVar();
+    checks.push(`Object.keys(${valueExpr}).every(${entryVar} => ${allowedKeys}.includes(${entryVar}))`);
+  } else if (typeof additionalProperties === 'object' && additionalProperties !== null) {
+    const entryVar = nextVar();
+    const valVar = nextVar();
+    const additionalCheck = emitSchema(additionalProperties, valVar);
+    checks.push(
+      `Object.entries(${valueExpr}).every(${entryVar} => {` +
+      ` const ${valVar} = ${entryVar}[1];` +
+      ` return ${JSON.stringify([...definedKeys])}.includes(${entryVar}[0]) || (${additionalCheck});` +
+      ` })`,
+    );
   }
 
   return checks.join(' && ');
@@ -175,7 +251,9 @@ export function emitStructuredSchemaCheck(
     case 'Array':
       return emitArrayCheck(currentSchema as TArray, valueExpr, emitSchema, nextVar);
     case 'Object':
-      return emitObjectCheck(currentSchema as TObject, valueExpr, emitSchema);
+      return emitObjectCheck(currentSchema as TObject, valueExpr, emitSchema, nextVar);
+    case 'Tuple':
+      return emitTupleCheck(currentSchema, valueExpr, emitSchema);
     case 'Union':
       return emitVariantCheck(currentSchema as TUnion, valueExpr, emitSchema, '||');
     case 'Intersect':
