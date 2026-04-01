@@ -347,3 +347,33 @@ describe('JIT parity: self-audit regression tests', () => {
     expect(compiled.Check({ name: 'Ada', invalid: 'no' })).toBe(Check(schema, { name: 'Ada', invalid: 'no' }));
   });
 });
+
+describe('Union Encode: encode-first-then-check pattern', () => {
+  it('encodes plain union by checking encoded result, not input', () => {
+    const { Encode } = require('../src/value/index.ts');
+    // Plain union — encoded result matches the schema
+    const schema = Baobox.Union([
+      Baobox.Object({ type: Baobox.Literal('a'), value: Baobox.String() }),
+      Baobox.Object({ type: Baobox.Literal('b'), value: Baobox.Number() }),
+    ]);
+    expect(Encode(schema, { type: 'a', value: 'hello' })).toEqual({ type: 'a', value: 'hello' });
+    expect(Encode(schema, { type: 'b', value: 42 })).toEqual({ type: 'b', value: 42 });
+  });
+
+  it('union encode falls back when no encoded variant passes Check', () => {
+    const { Encode } = require('../src/value/index.ts');
+    const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
+    // Boolean doesn't match any variant even after encoding
+    expect(Encode(schema, true)).toBe(true);
+  });
+
+  it('intersect encode processes all variants sequentially', () => {
+    const { Encode } = require('../src/value/index.ts');
+    const schema = Baobox.Intersect([
+      Baobox.Object({ name: Baobox.String() }),
+      Baobox.Object({ age: Baobox.Number() }),
+    ]);
+    const result = Encode(schema, { name: 'Ada', age: 37 });
+    expect(result).toEqual({ name: 'Ada', age: 37 });
+  });
+});

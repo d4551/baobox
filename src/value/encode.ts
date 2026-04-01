@@ -28,26 +28,6 @@ function resolveCodec(schema: TSchema): { encode: (input: unknown) => unknown } 
     : undefined;
 }
 
-/** Union encode receives decoded values; Codec variants must match via encode→inner check. */
-function unionVariantMatchesForEncode(
-  variant: TSchema,
-  value: unknown,
-  refs: Map<string, TSchema>,
-  checkContext?: RuntimeContextArg,
-): boolean {
-  if (schemaKind(variant) === 'Codec') {
-    const inner = schemaInner(variant);
-    const codec = resolveCodec(variant);
-    if (!inner || !codec) return CheckInternal(variant, value, refs, checkContext);
-    try {
-      return CheckInternal(inner, codec.encode(value), refs, checkContext);
-    } catch {
-      return false;
-    }
-  }
-  return CheckInternal(variant, value, refs, checkContext);
-}
-
 function encodeObject(
   schema: TSchema,
   value: unknown,
@@ -165,9 +145,14 @@ function EncodeInternal(
       return encodeTupleItems(schema, value, refs, checkContext);
     case 'Union': {
       const variants = schemaSchemaListField(schema, 'variants');
+      // TypeBox pattern: encode first, then check the encoded result.
+      // The incoming value is the decoded (application-side) form, so we
+      // can't Check it against the raw schema. Instead, try encoding through
+      // each variant and return the first result that passes Check.
       for (const variant of variants) {
-        if (unionVariantMatchesForEncode(variant, value, refs, checkContext)) {
-          return EncodeInternal(variant, value, refs, checkContext);
+        const encoded = EncodeInternal(variant, value, refs, checkContext);
+        if (CheckInternal(variant, encoded, refs, checkContext)) {
+          return encoded;
         }
       }
       return value;
