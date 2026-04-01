@@ -19,6 +19,7 @@ import {
   schemaItem,
   schemaKind,
   schemaOptionalKeys,
+  schemaPatternProperties,
   schemaSchemaField,
   schemaSchemaListField,
 } from '../shared/schema-access.js';
@@ -134,6 +135,13 @@ function emitRecordCheck(schema: TSchema, valueExpr: string, emitSchema: EmitSch
 }
 
 function emitObjectCheck(schema: TObject, valueExpr: string, emitSchema: EmitSchema, nextVar: () => string): string {
+  // Fall back to interpreted Check for schemas with patternProperties
+  // since JIT cannot efficiently emit regex matching at compile time
+  const patternProperties = schemaPatternProperties(schema as TSchema);
+  if (Object.keys(patternProperties).length > 0) {
+    return `__check(${valueExpr})`;
+  }
+
   const checks: string[] = [
     `typeof ${valueExpr} === 'object'`,
     `${valueExpr} !== null`,

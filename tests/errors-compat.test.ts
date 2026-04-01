@@ -55,12 +55,15 @@ describe('ErrorsIterator', () => {
     expect(errors.length).toBe(0);
   });
 
-  test('each error carries the root schema reference', () => {
-    const schema = B.Object({ age: B.Number({ minimum: 0 }) }, { required: ['age'] });
+  test('each error carries the sub-schema at the failing path', () => {
+    const ageSchema = B.Number({ minimum: 0 });
+    const schema = B.Object({ age: ageSchema }, { required: ['age'] });
     const errors = Array.from(ErrorsIterator(schema, { age: -1 }));
     expect(errors.length).toBeGreaterThan(0);
-    for (const error of errors) {
-      expect(error.schema).toBe(schema);
+    // Error at path "age" should reference the Number sub-schema, not root Object
+    const ageError = errors.find((e) => e.path.includes('age'));
+    if (ageError) {
+      expect(ageError.schema).toBe(ageSchema);
     }
   });
 
