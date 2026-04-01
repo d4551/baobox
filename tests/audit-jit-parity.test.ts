@@ -289,3 +289,61 @@ describe('JIT parity: comprehensive compiled vs interpreted', () => {
     }
   });
 });
+
+describe('JIT parity: self-audit regression tests', () => {
+  it('String pattern containing / compiles and matches interpreted', () => {
+    const schema = Baobox.String({ pattern: 'https?://.*' });
+    const compiled = Compile(schema);
+    expect(compiled.Check('https://example.com')).toBe(Check(schema, 'https://example.com'));
+    expect(compiled.Check('not-a-url')).toBe(Check(schema, 'not-a-url'));
+  });
+
+  it('String pattern with special regex chars compiles correctly', () => {
+    const schema = Baobox.String({ pattern: '^\\d{3}/\\d{2}$' });
+    const compiled = Compile(schema);
+    expect(compiled.Check('123/45')).toBe(Check(schema, '123/45'));
+    expect(compiled.Check('123-45')).toBe(Check(schema, '123-45'));
+  });
+
+  it('Integer exclusiveMinimum/exclusiveMaximum/multipleOf compiled matches interpreted', () => {
+    const schema = Baobox.Integer({ exclusiveMinimum: 5, exclusiveMaximum: 10, multipleOf: 2 });
+    const compiled = Compile(schema);
+    for (const v of [4, 5, 6, 7, 8, 9, 10, 11, 12]) {
+      expect(compiled.Check(v)).toBe(Check(schema, v));
+    }
+  });
+
+  it('Integer with only multipleOf compiled matches interpreted', () => {
+    const schema = Baobox.Integer({ multipleOf: 3 });
+    const compiled = Compile(schema);
+    for (const v of [0, 1, 2, 3, 6, 9, 10]) {
+      expect(compiled.Check(v)).toBe(Check(schema, v));
+    }
+  });
+
+  it('empty Union compiled returns false (matches interpreted)', () => {
+    const schema = Baobox.Union([]);
+    const compiled = Compile(schema);
+    expect(compiled.Check('anything')).toBe(false);
+    expect(compiled.Check(null)).toBe(false);
+    expect(compiled.Check('anything')).toBe(Check(schema, 'anything'));
+  });
+
+  it('empty Intersect compiled returns true (matches interpreted)', () => {
+    const schema = Baobox.Intersect([]);
+    const compiled = Compile(schema);
+    expect(compiled.Check('anything')).toBe(true);
+    expect(compiled.Check(null)).toBe(true);
+    expect(compiled.Check('anything')).toBe(Check(schema, 'anything'));
+  });
+
+  it('Object with patternProperties falls back correctly', () => {
+    const schema = Baobox.Object(
+      { name: Baobox.String() },
+      { patternProperties: { '^x-': Baobox.String() }, additionalProperties: false },
+    );
+    const compiled = Compile(schema);
+    expect(compiled.Check({ name: 'Ada', 'x-custom': 'ok' })).toBe(Check(schema, { name: 'Ada', 'x-custom': 'ok' }));
+    expect(compiled.Check({ name: 'Ada', invalid: 'no' })).toBe(Check(schema, { name: 'Ada', invalid: 'no' }));
+  });
+});

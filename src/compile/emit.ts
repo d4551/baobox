@@ -30,7 +30,7 @@ function emitStringCheck(schema: TString, valueExpr: string): string {
   const checks: string[] = [`typeof ${valueExpr} === 'string'`];
   if (schema.minLength !== undefined) checks.push(`${valueExpr}.length >= ${schema.minLength}`);
   if (schema.maxLength !== undefined) checks.push(`${valueExpr}.length <= ${schema.maxLength}`);
-  if (schema.pattern !== undefined) checks.push(`/${schema.pattern}/.test(${valueExpr})`);
+  if (schema.pattern !== undefined) checks.push(`new RegExp(${JSON.stringify(schema.pattern)}).test(${valueExpr})`);
   if (schema.format !== undefined) checks.push(`__validateFormat(${valueExpr}, ${JSON.stringify(schema.format)})`);
   return checks.join(' && ');
 }
@@ -49,6 +49,9 @@ function emitIntegerCheck(schema: TInteger, valueExpr: string): string {
   const checks: string[] = [`typeof ${valueExpr} === 'number'`, `Number.isInteger(${valueExpr})`];
   if (schema.minimum !== undefined) checks.push(`${valueExpr} >= ${schema.minimum}`);
   if (schema.maximum !== undefined) checks.push(`${valueExpr} <= ${schema.maximum}`);
+  if (schema.exclusiveMinimum !== undefined) checks.push(`${valueExpr} > ${schema.exclusiveMinimum}`);
+  if (schema.exclusiveMaximum !== undefined) checks.push(`${valueExpr} < ${schema.exclusiveMaximum}`);
+  if (schema.multipleOf !== undefined) checks.push(`${valueExpr} % ${schema.multipleOf} === 0`);
   return checks.join(' && ');
 }
 
@@ -193,6 +196,9 @@ function emitVariantCheck(
   emitSchema: EmitSchema,
   operator: '&&' | '||',
 ): string {
+  if (schema.variants.length === 0) {
+    return operator === '||' ? 'false' : 'true';
+  }
   return schema.variants.map((variant) => `(${emitSchema(variant, valueExpr)})`).join(` ${operator} `);
 }
 
