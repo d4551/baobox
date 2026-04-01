@@ -126,6 +126,16 @@ function convertStructuredValue(schema: TSchema, value: unknown, refs: Map<strin
         return itemSchema ? ConvertInternal(itemSchema, item, refs) : item;
       });
     }
+    case 'Record': {
+      if (!isPlainRecord(value)) return value;
+      const valueSchema = schemaSchemaField(schema, 'value');
+      if (!valueSchema) return value;
+      const result: Record<string, unknown> = {};
+      for (const [key, entryValue] of recordEntries(value)) {
+        result[key] = ConvertInternal(valueSchema, entryValue, refs);
+      }
+      return result;
+    }
     default:
       return NOT_HANDLED;
   }

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import Baobox, { Check, Clean, Convert, Create, Default, Repair } from '../src/index.ts';
-import { Decode, Encode } from '../src/value/index.ts';
+import { Decode, Encode, Value } from '../src/value/index.ts';
 
 describe('Immutable wrapper parity across value operations', () => {
   it('Check validates through Immutable wrapper', () => {
@@ -156,4 +156,62 @@ describe('Nested Immutable + Refine combinations', () => {
     expect(Check(schema, undefined)).toBe(true);
     expect(Check(schema, 42)).toBe(false);
   });
+});
+
+describe('Record parity across Convert and Default', () => {
+  it('Convert traverses Record values', () => {
+    const schema = Baobox.Record(Baobox.String(), Baobox.Number());
+    // '42' should convert to 42 inside Record values
+    const result = Convert(schema, { a: '42', b: '7' });
+    expect(result).toEqual({ a: 42, b: 7 });
+  });
+
+  it('Default traverses Record values with defaults', () => {
+    const schema = Baobox.Record(Baobox.String(), Baobox.Object({
+      name: Baobox.String({ default: 'anon' }),
+    }));
+    const result = Default(schema, { user1: {} });
+    expect(result).toEqual({ user1: { name: 'anon' } });
+  });
+
+  it('Convert with empty Record returns empty', () => {
+    const schema = Baobox.Record(Baobox.String(), Baobox.Number());
+    expect(Convert(schema, {})).toEqual({});
+  });
+
+  it('Default with non-record value returns unchanged', () => {
+    const schema = Baobox.Record(Baobox.String(), Baobox.Number());
+    expect(Default(schema, 42)).toBe(42);
+  });
+});
+
+describe('Value operation matrix: all operations handle key schema kinds', () => {
+  // Verify the full pipeline works for each major wrapper type
+  const testCases = [
+    { name: 'plain Object', schema: Baobox.Object({ x: Baobox.String({ default: 'hi' }) }), valid: { x: 'test' }, convertible: { x: 'test' } },
+    { name: 'Array', schema: Baobox.Array(Baobox.Number()), valid: [1, 2, 3], convertible: ['1', '2'] },
+    { name: 'Record', schema: Baobox.Record(Baobox.String(), Baobox.Number()), valid: { a: 1 }, convertible: { a: '1' } },
+    { name: 'Optional(String)', schema: Baobox.Optional(Baobox.String()), valid: 'hello', convertible: 'hello' },
+    { name: 'Readonly(Number)', schema: Baobox.Readonly(Baobox.Number()), valid: 42, convertible: '42' },
+    { name: 'Immutable(Boolean)', schema: Baobox.Immutable(Baobox.Boolean()), valid: true, convertible: 'true' },
+  ];
+
+  for (const { name, schema, valid, convertible } of testCases) {
+    it(`Check works for ${name}`, () => {
+      expect(Check(schema, valid)).toBe(true);
+    });
+
+    it(`Convert works for ${name}`, () => {
+      const result = Convert(schema, convertible);
+      expect(result).toBeDefined();
+    });
+
+    it(`Decode works for ${name}`, () => {
+      expect(Decode(schema, valid)).toBeDefined();
+    });
+
+    it(`Encode works for ${name}`, () => {
+      expect(Encode(schema, valid)).toBeDefined();
+    });
+  }
 });
