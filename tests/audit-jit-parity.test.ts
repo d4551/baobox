@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import Baobox, { Check, Compile, ErrorsIterator } from '../src/index.ts';
+import type { TSchema } from '../src/type/index.ts';
 
 describe('JIT parity: Tuple emission', () => {
   it('basic tuple validates correctly compiled', () => {
@@ -152,7 +153,7 @@ describe('JIT parity: Array advanced constraints', () => {
 
   it('contains constraint compiled', () => {
     const schema = Baobox.Array(Baobox.Number(), {
-      contains: Baobox.Integer({ minimum: 10 }),
+      contains: Baobox.Integer({ minimum: 10 }) as TSchema,
     });
     const compiled = Compile(schema);
 
@@ -378,7 +379,7 @@ describe('Union Encode: encode-first-then-check pattern', () => {
   it('union encode falls back when no encoded variant passes Check', async () => {
     const { Encode } = await import('../src/value/index.ts');
     const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
-    expect(Encode(schema, true)).toBe(true);
+    expect(Encode(schema, true as unknown) as unknown).toBe(true);
   });
 
   it('intersect encode processes all variants sequentially', () => {

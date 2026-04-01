@@ -181,7 +181,7 @@ describe('Record parity across Convert and Default', () => {
 
   it('Default with non-record value returns unchanged', () => {
     const schema = Baobox.Record(Baobox.String(), Baobox.Number());
-    expect(Default(schema, 42)).toBe(42);
+    expect(Default(schema, 42 as unknown) as unknown).toBe(42);
   });
 });
 

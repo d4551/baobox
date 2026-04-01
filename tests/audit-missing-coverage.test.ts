@@ -201,7 +201,7 @@ describe('Codec builder chain pattern', () => {
       .Encode((v: number) => String(v));
 
     // Verify it has ~kind
-    expect((schema as Record<string, unknown>)['~kind']).toBeDefined();
+    expect((schema as unknown as Record<string, unknown>)['~kind']).toBeDefined();
 
     // Decode works
     expect(Decode(schema, '42')).toBe(42);

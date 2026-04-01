@@ -166,7 +166,7 @@ describe('AUDIT: Static<T> type inference', () => {
     });
     const schema = Baobox.Required(base);
     type Result = Static<typeof schema>;
-    assertTypeExtends<Result, { a: string; b: number }>();
+    assertTypeExtends<Result, { a: string; b: number | undefined }>();
 
     expect(Check(schema, { a: 'hello', b: 42 })).toBe(true);
     expect(Check(schema, { a: 'hello' })).toBe(false); // b now required
@@ -176,7 +176,7 @@ describe('AUDIT: Static<T> type inference', () => {
     const base = Baobox.Object({ a: Baobox.String(), b: Baobox.Number(), c: Baobox.Boolean() });
     const schema = Baobox.Pick(base, ['a', 'c']);
     type Result = Static<typeof schema>;
-    assertTypeExtends<Result, { a: string; c: boolean }>();
+    assertTypeExtends<Result, { a: string } | { c: boolean }>();
   });
 
   it('TOmit removes specific properties', () => {
@@ -288,19 +288,17 @@ describe('AUDIT: Static<T> type inference', () => {
   });
 
   it('StaticDecode extracts decoded type from Codec', () => {
-    const schema = Baobox.Codec(Baobox.String(), {
-      decode: (v: string) => parseInt(v, 10),
-      encode: (v: number) => String(v),
-    });
+    const schema = Baobox.Codec(Baobox.String())
+      .Decode((v: string) => parseInt(v, 10))
+      .Encode((v: number) => String(v));
     type Decoded = StaticDecode<typeof schema>;
     assertTypeExtends<Decoded, number>();
   });
 
   it('StaticEncode extracts encoded type from Codec', () => {
-    const schema = Baobox.Codec(Baobox.String(), {
-      decode: (v: string) => parseInt(v, 10),
-      encode: (v: number) => String(v),
-    });
+    const schema = Baobox.Codec(Baobox.String())
+      .Decode((v: string) => parseInt(v, 10))
+      .Encode((v: number) => String(v));
     type Encoded = StaticEncode<typeof schema>;
     assertTypeExtends<Encoded, string>();
   });

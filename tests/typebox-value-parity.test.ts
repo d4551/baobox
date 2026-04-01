@@ -373,12 +373,12 @@ describe('TypeBox value parity', () => {
 
     it('union decode returns value when no variant matches', () => {
       const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
-      expect(Decode(schema, true as unknown)).toBe(true);
+      expect(Decode(schema, true as unknown) as unknown).toBe(true);
     });
 
     it('union encode returns value when no variant matches', () => {
       const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
-      expect(Encode(schema, true as unknown)).toBe(true);
+      expect(Encode(schema, true as unknown) as unknown).toBe(true);
     });
   });
 
