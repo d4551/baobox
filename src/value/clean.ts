@@ -96,7 +96,9 @@ function cleanCompositeValue(schema: TSchema, value: unknown, refs: Map<string, 
       return result;
     }
     case 'Optional':
-    case 'Readonly': {
+    case 'Readonly':
+    case 'Immutable':
+    case 'Refine': {
       const itemSchema = schemaItem(schema);
       return value === undefined || itemSchema === undefined
         ? value

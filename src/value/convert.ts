@@ -139,7 +139,9 @@ function convertCompositeValue(schema: TSchema, value: unknown, refs: Map<string
         ? value
         : ConvertInternal(itemSchema, value, refs);
     }
-    case 'Readonly': {
+    case 'Readonly':
+    case 'Immutable':
+    case 'Refine': {
       const itemSchema = schemaItem(schema);
       return itemSchema ? ConvertInternal(itemSchema, value, refs) : value;
     }

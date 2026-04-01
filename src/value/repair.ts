@@ -12,7 +12,7 @@ import type {
   TTuple,
   TUnion,
 } from '../type/schema.js';
-import { schemaKind } from '../shared/schema-access.js';
+import { schemaItem, schemaKind } from '../shared/schema-access.js';
 import { Check } from './check.js';
 import { Clone } from './clone.js';
 import { Convert } from './convert.js';
@@ -163,7 +163,11 @@ function repairInternal(
     case 'Optional':
       return value === undefined ? undefined : repairInternal((schema as TOptional<TSchema>).item, value, refs, context);
     case 'Readonly':
-      return repairInternal((schema as TReadonly<TSchema>).item, value, refs, context);
+    case 'Immutable':
+    case 'Refine': {
+      const innerSchema = schemaItem(schema);
+      return innerSchema ? repairInternal(innerSchema, value, refs, context) : value;
+    }
     case 'Recursive': {
       const recursiveSchema = schema as TRecursive;
       const nextRefs = new Map(refs);

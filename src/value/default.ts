@@ -69,7 +69,9 @@ function defaultCompositeValue(schema: TSchema, value: unknown, refs: Map<string
         ? value
         : DefaultInternal(itemSchema, value, refs);
     }
-    case 'Readonly': {
+    case 'Readonly':
+    case 'Immutable':
+    case 'Refine': {
       const itemSchema = schemaItem(schema);
       return itemSchema ? DefaultInternal(itemSchema, value, refs) : value;
     }

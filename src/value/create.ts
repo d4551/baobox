@@ -96,7 +96,12 @@ function createStructuredValue(schema: TSchema, refs: Map<string, TSchema>): unk
     }
     case 'Optional':
       return undefined;
-    case 'Readonly': {
+    case 'Readonly':
+    case 'Immutable': {
+      const itemSchema = schemaItem(schema);
+      return itemSchema ? CreateInternal(itemSchema, refs) : undefined;
+    }
+    case 'Refine': {
       const itemSchema = schemaItem(schema);
       return itemSchema ? CreateInternal(itemSchema, refs) : undefined;
     }
