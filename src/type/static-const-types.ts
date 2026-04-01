@@ -49,6 +49,12 @@ import type {
   TUppercase,
   TVoid,
   TNever,
+  TFunction,
+  TConstructor,
+  TPromise,
+  TIterator,
+  TAsyncIterator,
+  TTemplateLiteral,
   UnionToIntersection,
 } from './static-shared-types.js';
 
@@ -174,4 +180,30 @@ export type StaticConst<T, Stack extends TSchema[]> = T extends TString
                                                                                   : never
                                                                                 : T extends TSymbol
                                                                                   ? symbol
-                                                                                  : unknown;
+                                                                                  : T extends TDecode<infer I>
+                                                                                    ? StaticConst<I, Stack>
+                                                                                    : T extends TEncode<infer I>
+                                                                                      ? StaticConst<I, Stack>
+                                                                                      : T extends TAwaited<infer P>
+                                                                                        ? StaticConst<P['item'], Stack>
+                                                                                        : T extends TReturnType<infer F>
+                                                                                          ? StaticConst<F['returns'], Stack>
+                                                                                          : T extends TParameters<infer F>
+                                                                                            ? { [K in keyof F['parameters']]: StaticConst<F['parameters'][K], Stack> }
+                                                                                            : T extends TInstanceType<infer C>
+                                                                                              ? StaticConst<C['returns'], Stack>
+                                                                                              : T extends TConstructorParameters<infer C>
+                                                                                                ? { [K in keyof C['parameters']]: StaticConst<C['parameters'][K], Stack> }
+                                                                                                : T extends TFunction<infer P, infer R>
+                                                                                                  ? (...args: { [K in keyof P]: StaticConst<P[K], Stack> }) => StaticConst<R, Stack>
+                                                                                                  : T extends TConstructor<infer P, infer R>
+                                                                                                    ? new (...args: { [K in keyof P]: StaticConst<P[K], Stack> }) => StaticConst<R, Stack>
+                                                                                                    : T extends TPromise<infer I>
+                                                                                                      ? Promise<StaticConst<I, Stack>>
+                                                                                                      : T extends TIterator<infer I>
+                                                                                                        ? IterableIterator<StaticConst<I, Stack>>
+                                                                                                        : T extends TAsyncIterator<infer I>
+                                                                                                          ? AsyncIterableIterator<StaticConst<I, Stack>>
+                                                                                                          : T extends TTemplateLiteral
+                                                                                                            ? string
+                                                                                                            : unknown;

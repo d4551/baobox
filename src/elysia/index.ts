@@ -344,4 +344,88 @@ export const t = {
 
   Immutable: (...args: Parameters<typeof Type.Immutable>) =>
     decorateSchema(Type.Immutable(...args)),
+
+  // ── actions ─────────────────────────────────────────────────────────────
+
+  Evaluate: (...args: Parameters<typeof Type.Evaluate>) =>
+    decorateSchema(Type.Evaluate(...args)),
+
+  Awaited: (...args: Parameters<typeof Type.Awaited>) =>
+    decorateSchema(Type.Awaited(...args)),
+
+  ReturnType: (...args: Parameters<typeof Type.ReturnType>) =>
+    decorateSchema(Type.ReturnType(...args)),
+
+  Parameters: (...args: Parameters<typeof Type.Parameters>) =>
+    decorateSchema(Type.Parameters(...args)),
+
+  InstanceType: (...args: Parameters<typeof Type.InstanceType>) =>
+    decorateSchema(Type.InstanceType(...args)),
+
+  ConstructorParameters: (...args: Parameters<typeof Type.ConstructorParameters>) =>
+    decorateSchema(Type.ConstructorParameters(...args)),
+
+  Module: (...args: Parameters<typeof Type.Module>) =>
+    decorateSchema(Type.Module(...args)),
+
+  Rest: (...args: Parameters<typeof Type.Rest>) =>
+    decorateSchema(Type.Rest(...args)),
+
+  Clone: (...args: Parameters<typeof Type.Clone>) =>
+    decorateSchema(Type.Clone(...args)),
+
+  Interface: (...args: Parameters<typeof Type.Interface>) =>
+    decorateSchema(Type.Interface(...args)),
+
+  NonNullable: (...args: Parameters<typeof Type.NonNullable>) =>
+    decorateSchema(Type.NonNullable(...args)),
+
+  Options: (...args: Parameters<typeof Type.Options>) =>
+    decorateSchema(Type.Options(...args)),
+
+  ReadonlyType: (...args: Parameters<typeof Type.ReadonlyType>) =>
+    decorateSchema(Type.ReadonlyType(...args)),
+
+  Identifier: (...args: Parameters<typeof Type.Identifier>) =>
+    decorateSchema(Type.Identifier(...args)),
+
+  Parameter: (...args: Parameters<typeof Type.Parameter>) =>
+    decorateSchema(Type.Parameter(...args)),
+
+  This: (...args: Parameters<typeof Type.This>) =>
+    decorateSchema(Type.This(...args)),
+
+  Import: (...args: Parameters<typeof Type.Import>) =>
+    decorateSchema(Type.Import(...args)),
+
+  // ── extension builders ──────────────────────────────────────────────────
+
+  Generic: (...args: Parameters<typeof Type.Generic>) =>
+    decorateSchema(Type.Generic(...args)),
+
+  Infer: (...args: Parameters<typeof Type.Infer>) =>
+    decorateSchema(Type.Infer(...args)),
+
+  Cyclic: (...args: Parameters<typeof Type.Cyclic>) =>
+    decorateSchema(Type.Cyclic(...args)),
+
+  Call: (...args: Parameters<typeof Type.Call>) =>
+    decorateSchema(Type.Call(...args)),
+
+  Base: Type.Base,
+
+  Function: (...args: Parameters<typeof Type.Function>) =>
+    decorateSchema(Type.Function(...args)),
+
+  Constructor: (...args: Parameters<typeof Type.Constructor>) =>
+    decorateSchema(Type.Constructor(...args)),
+
+  Promise: (...args: Parameters<typeof Type.Promise>) =>
+    decorateSchema(Type.Promise(...args)),
+
+  Iterator: (...args: Parameters<typeof Type.Iterator>) =>
+    decorateSchema(Type.Iterator(...args)),
+
+  AsyncIterator: (...args: Parameters<typeof Type.AsyncIterator>) =>
+    decorateSchema(Type.AsyncIterator(...args)),
 } as const;

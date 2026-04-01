@@ -13,6 +13,7 @@ import {
 } from '../shared/schema-access.js';
 import { isCodecShape, isPlainRecord, recordEntries } from '../shared/runtime-guards.js';
 import { Instantiate } from '../type/instantiation.js';
+import { CheckInternal } from './check.js';
 
 /** Run encode callbacks depth-first on a value */
 export function Encode<T extends TSchema>(schema: T, value: unknown): StaticEncode<T> {
@@ -111,6 +112,22 @@ function EncodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSche
       return encodeArrayItems(schemaSchemaField(schema, 'items'), value, refs);
     case 'Tuple':
       return encodeTupleItems(schema, value, refs);
+    case 'Union': {
+      const variants = schemaSchemaListField(schema, 'variants');
+      for (const variant of variants) {
+        if (CheckInternal(variant, value, refs)) {
+          return EncodeInternal(variant, value, refs);
+        }
+      }
+      return value;
+    }
+    case 'Intersect': {
+      let result = value;
+      for (const variant of schemaSchemaListField(schema, 'variants')) {
+        result = EncodeInternal(variant, result, refs);
+      }
+      return result;
+    }
     case 'Optional':
     case 'Readonly':
     case 'Immutable':

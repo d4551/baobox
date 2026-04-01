@@ -13,6 +13,7 @@ import {
 } from '../shared/schema-access.js';
 import { isCodecShape, isPlainRecord, recordEntries } from '../shared/runtime-guards.js';
 import { Instantiate } from '../type/instantiation.js';
+import { CheckInternal } from './check.js';
 
 /** Run decode callbacks depth-first on a value */
 export function Decode<T extends TSchema>(schema: T, value: unknown): StaticDecode<T> {
@@ -111,8 +112,15 @@ function DecodeInternal(schema: TSchema, value: unknown, refs: Map<string, TSche
       return decodeArrayItems(schemaSchemaField(schema, 'items'), value, refs);
     case 'Tuple':
       return decodeTupleItems(schema, value, refs);
-    case 'Union':
+    case 'Union': {
+      const variants = schemaSchemaListField(schema, 'variants');
+      for (const variant of variants) {
+        if (CheckInternal(variant, value, refs)) {
+          return DecodeInternal(variant, value, refs);
+        }
+      }
       return value;
+    }
     case 'Intersect': {
       let result = value;
       for (const variant of schemaSchemaListField(schema, 'variants')) {

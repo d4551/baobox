@@ -6,12 +6,13 @@ import type {
   TLiteral,
   TNumber,
   TObject,
+  TRecord,
   TSchema,
   TString,
   TUint8Array,
   TUnion,
 } from '../type/schema.js';
-import { schemaItem, schemaKind } from '../shared/schema-access.js';
+import { schemaItem, schemaKind, schemaSchemaField } from '../shared/schema-access.js';
 
 export type EmitSchema = (schema: TSchema, valueExpr: string) => string;
 
@@ -57,6 +58,23 @@ function emitArrayCheck(
   if (schema.maxItems !== undefined) checks.push(`${valueExpr}.length <= ${schema.maxItems}`);
   checks.push(`${valueExpr}.every(${itemVar} => ${emitSchema(schema.items, itemVar)})`);
   return checks.join(' && ');
+}
+
+function emitRecordCheck(schema: TSchema, valueExpr: string, emitSchema: EmitSchema, nextVar: () => string): string {
+  const keySchema = schemaSchemaField(schema, 'key');
+  const valueSchema = schemaSchemaField(schema, 'value');
+  if (!keySchema || !valueSchema) return `__check(${valueExpr})`;
+  const entryVar = nextVar();
+  const keyExpr = `${entryVar}[0]`;
+  const valExpr = `${entryVar}[1]`;
+  const keyCheck = emitSchema(keySchema, keyExpr);
+  const valCheck = emitSchema(valueSchema, valExpr);
+  return [
+    `typeof ${valueExpr} === 'object'`,
+    `${valueExpr} !== null`,
+    `!Array.isArray(${valueExpr})`,
+    `Object.entries(${valueExpr}).every(${entryVar} => ${keyCheck} && ${valCheck})`,
+  ].join(' && ');
 }
 
 function emitObjectCheck(schema: TObject, valueExpr: string, emitSchema: EmitSchema): string {
@@ -160,6 +178,8 @@ export function emitStructuredSchemaCheck(
       return emitSchema(schemaItem(currentSchema) ?? currentSchema, valueExpr);
     case 'Enum':
       return emitEnumCheck(currentSchema as TEnum, valueExpr);
+    case 'Record':
+      return emitRecordCheck(currentSchema, valueExpr, emitSchema, nextVar);
     default:
       return undefined;
   }

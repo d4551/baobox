@@ -348,4 +348,61 @@ describe('TypeBox value parity', () => {
       expect(typeof V.Repair).toBe('function');
     });
   });
+
+  describe('Union Decode/Encode', () => {
+    it('decodes through the matching union variant (plain types)', () => {
+      const schema = Baobox.Union([
+        Baobox.Object({ type: Baobox.Literal('a'), value: Baobox.String() }),
+        Baobox.Object({ type: Baobox.Literal('b'), value: Baobox.Number() }),
+      ]);
+      // First variant matches
+      const resultA = Decode(schema, { type: 'a', value: 'hello' });
+      expect(resultA).toEqual({ type: 'a', value: 'hello' });
+      // Second variant matches
+      const resultB = Decode(schema, { type: 'b', value: 42 });
+      expect(resultB).toEqual({ type: 'b', value: 42 });
+    });
+
+    it('encodes through the matching union variant (plain types)', () => {
+      const schema = Baobox.Union([
+        Baobox.Object({ type: Baobox.Literal('a'), value: Baobox.String() }),
+        Baobox.Object({ type: Baobox.Literal('b'), value: Baobox.Number() }),
+      ]);
+      expect(Encode(schema, { type: 'a', value: 'hello' })).toEqual({ type: 'a', value: 'hello' });
+    });
+
+    it('union decode returns value when no variant matches', () => {
+      const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
+      expect(Decode(schema, true)).toBe(true);
+    });
+
+    it('union encode returns value when no variant matches', () => {
+      const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
+      expect(Encode(schema, true)).toBe(true);
+    });
+  });
+
+  describe('Intersect Encode', () => {
+    it('encodes sequentially through intersect variants', () => {
+      const schema = Baobox.Intersect([
+        Baobox.Object({ name: Baobox.String() }),
+        Baobox.Object({ age: Baobox.Number() }),
+      ]);
+      const result = Encode(schema, { name: 'Ada', age: 37 });
+      expect(result).toEqual({ name: 'Ada', age: 37 });
+    });
+  });
+
+  describe('Nested Object Decode/Encode', () => {
+    it('decodes nested object properties', () => {
+      const schema = Baobox.Object({
+        name: Baobox.String(),
+        nested: Baobox.Object({
+          count: Baobox.Number(),
+        }),
+      });
+      const result = Decode(schema, { name: 'test', nested: { count: 42 } });
+      expect(result).toEqual({ name: 'test', nested: { count: 42 } });
+    });
+  });
 });

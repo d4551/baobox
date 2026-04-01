@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import type { Static, TObject, TString, TNumber, TOptional as TOptionalType } from '../src/type/index.ts';
+import type {
+  Static, StaticDecode, StaticEncode,
+  TObject, TString, TNumber, TOptional as TOptionalType,
+  TFunction, TConstructor, TPromise as TPromiseType, TIterator as TIteratorType,
+  TAsyncIterator as TAsyncIteratorType, TTemplateLiteral,
+} from '../src/type/index.ts';
 import Baobox, { Check } from '../src/index.ts';
 
 /** Compile-time bidirectional type assertion */
@@ -242,5 +247,61 @@ describe('AUDIT: Static<T> type inference', () => {
     const schema = Baobox.KeyOf(obj);
     type Result = Static<typeof schema>;
     assertTypeExtends<Result, 'name' | 'age'>();
+  });
+
+  // ── Phase 3: New Static<T> type branches ────────────────────────────
+
+  it('TFunction resolves to function type', () => {
+    const schema = Baobox.Function([Baobox.String(), Baobox.Number()], Baobox.Boolean());
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, (...args: [string, number]) => boolean>();
+  });
+
+  it('TConstructor resolves to constructor type', () => {
+    const schema = Baobox.Constructor([Baobox.String()], Baobox.Object({ id: Baobox.String() }));
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, new (...args: [string]) => { id: string }>();
+  });
+
+  it('TPromise resolves to Promise type', () => {
+    const schema = Baobox.Promise(Baobox.String());
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, Promise<string>>();
+  });
+
+  it('TIterator resolves to IterableIterator type', () => {
+    const schema = Baobox.Iterator(Baobox.Number());
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, IterableIterator<number>>();
+  });
+
+  it('TAsyncIterator resolves to AsyncIterableIterator type', () => {
+    const schema = Baobox.AsyncIterator(Baobox.String());
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, AsyncIterableIterator<string>>();
+  });
+
+  it('TTemplateLiteral resolves to string', () => {
+    const schema = Baobox.TemplateLiteral(['hello', 'world']);
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, string>();
+  });
+
+  it('StaticDecode extracts decoded type from Codec', () => {
+    const schema = Baobox.Codec(Baobox.String(), {
+      decode: (v: string) => parseInt(v, 10),
+      encode: (v: number) => String(v),
+    });
+    type Decoded = StaticDecode<typeof schema>;
+    assertTypeExtends<Decoded, number>();
+  });
+
+  it('StaticEncode extracts encoded type from Codec', () => {
+    const schema = Baobox.Codec(Baobox.String(), {
+      decode: (v: string) => parseInt(v, 10),
+      encode: (v: number) => String(v),
+    });
+    type Encoded = StaticEncode<typeof schema>;
+    assertTypeExtends<Encoded, string>();
   });
 });

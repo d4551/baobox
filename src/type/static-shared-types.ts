@@ -38,6 +38,7 @@ export type {
   TExclude,
   TExtract,
   TUnsafe,
+  TTemplateLiteral,
 } from './narrow-types.js';
 export type {
   TKeyOf,
@@ -57,6 +58,12 @@ export type {
   TParameters,
   TInstanceType,
   TConstructorParameters,
+  TFunction,
+  TConstructor,
+  TPromise,
+  TIterator,
+  TAsyncIterator,
+  TModule,
 } from './wrapper-types.js';
 export type {
   TRest,

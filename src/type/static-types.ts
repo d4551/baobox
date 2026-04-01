@@ -51,6 +51,12 @@ import type {
   TUppercase,
   TVoid,
   TNever,
+  TFunction,
+  TConstructor,
+  TPromise,
+  TIterator,
+  TAsyncIterator,
+  TTemplateLiteral,
   UnionToIntersection,
 } from './static-shared-types.js';
 
@@ -235,7 +241,19 @@ type StaticValue<T, Stack extends TSchema[]> = T extends TString
                                                                                                 : never
                                                                                               : T extends TSymbol
                                                                                                 ? symbol
-                                                                                                : unknown;
+                                                                                                : T extends TFunction<infer P, infer R>
+                                                                                                  ? (...args: StaticTuple<P, Stack>) => StaticValue<R, Stack>
+                                                                                                  : T extends TConstructor<infer P, infer R>
+                                                                                                    ? new (...args: StaticTuple<P, Stack>) => StaticValue<R, Stack>
+                                                                                                    : T extends TPromise<infer I>
+                                                                                                      ? Promise<StaticValue<I, Stack>>
+                                                                                                      : T extends TIterator<infer I>
+                                                                                                        ? IterableIterator<StaticValue<I, Stack>>
+                                                                                                        : T extends TAsyncIterator<infer I>
+                                                                                                          ? AsyncIterableIterator<StaticValue<I, Stack>>
+                                                                                                          : T extends TTemplateLiteral
+                                                                                                            ? string
+                                                                                                            : unknown;
 
 type StaticDecodeValue<T, Stack extends TSchema[]> = T extends TCodec<infer _Inner, infer Decoded>
   ? Decoded

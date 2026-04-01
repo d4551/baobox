@@ -32,7 +32,10 @@ export function CheckInternal(
   refs: Map<string, TSchema>,
   context?: RuntimeContextArg,
 ): boolean {
-  const runtimeContext = resolveCheckContext(context);
+  // Avoid re-resolving context on recursive calls — if already a RuntimeContext, use directly
+  const runtimeContext = (context !== undefined && typeof context === 'object' && 'TypeRegistry' in context)
+    ? context as RuntimeContext
+    : resolveCheckContext(context);
   const kind = schemaKind(schema);
 
   const primitiveResult = checkPrimitiveKind(kind, schema, value, runtimeContext);

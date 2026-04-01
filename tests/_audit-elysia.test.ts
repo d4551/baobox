@@ -181,4 +181,49 @@ describe('AUDIT: Elysia adapter deep verification', () => {
     const immutable = t.Immutable(t.String());
     expect((immutable as unknown as Record<string | symbol, unknown>)[Kind]).toBeDefined();
   });
+
+  it('new builders in t namespace exist and produce schemas', () => {
+    // Actions
+    expect(typeof t.Evaluate).toBe('function');
+    expect(typeof t.Awaited).toBe('function');
+    expect(typeof t.ReturnType).toBe('function');
+    expect(typeof t.Parameters).toBe('function');
+    expect(typeof t.InstanceType).toBe('function');
+    expect(typeof t.ConstructorParameters).toBe('function');
+    expect(typeof t.Module).toBe('function');
+    expect(typeof t.Rest).toBe('function');
+    expect(typeof t.Clone).toBe('function');
+    expect(typeof t.Interface).toBe('function');
+    expect(typeof t.NonNullable).toBe('function');
+    expect(typeof t.Options).toBe('function');
+    expect(typeof t.ReadonlyType).toBe('function');
+    expect(typeof t.Identifier).toBe('function');
+    expect(typeof t.Parameter).toBe('function');
+    expect(typeof t.This).toBe('function');
+    expect(typeof t.Import).toBe('function');
+
+    // Extensions
+    expect(typeof t.Generic).toBe('function');
+    expect(typeof t.Infer).toBe('function');
+    expect(typeof t.Cyclic).toBe('function');
+    expect(typeof t.Call).toBe('function');
+    expect(t.Base).toBeDefined();
+
+    // Wrapper types
+    expect(typeof t.Function).toBe('function');
+    expect(typeof t.Constructor).toBe('function');
+    expect(typeof t.Promise).toBe('function');
+    expect(typeof t.Iterator).toBe('function');
+    expect(typeof t.AsyncIterator).toBe('function');
+  });
+
+  it('Function builder produces decorated schema', () => {
+    const schema = t.Function([t.String()], t.Boolean());
+    expect((schema as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Function');
+  });
+
+  it('Promise builder produces decorated schema', () => {
+    const schema = t.Promise(t.String());
+    expect((schema as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Promise');
+  });
 });
