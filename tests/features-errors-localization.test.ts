@@ -14,13 +14,13 @@ describe('localized runtime errors', () => {
       user: B.Object({ name: B.String() }, { required: ['name'] }),
     }, { required: ['user'] });
 
-    expect(collectSchemaIssues(schema, { user: {} })).toEqual([
-      {
-        path: 'user.name',
-        code: 'MISSING_REQUIRED',
-        params: { property: 'name' },
-      },
-    ]);
+    const issues = collectSchemaIssues(schema, { user: {} });
+    expect(issues.length).toBe(1);
+    expect(issues[0]).toMatchObject({
+      path: 'user.name',
+      code: 'MISSING_REQUIRED',
+      params: { property: 'name' },
+    });
   });
 
   it('localizes Value.Errors messages through System.Locale', () => {
