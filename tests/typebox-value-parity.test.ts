@@ -296,8 +296,8 @@ describe('TypeBox value parity', () => {
   describe('Decode/Encode', () => {
     it('Decode processes codec on schema with codec', () => {
       const toNumber = (v: unknown) => globalThis.Number.parseInt(v as string, 10);
-      const bSchema = Baobox.Codec(Baobox.String(), { decode: toNumber, encode: (v: unknown) => String(v) });
-      const tSchema = TypeBox.Codec(TypeBox.String(), { decode: toNumber, encode: (v: unknown) => String(v) });
+      const bSchema = Baobox.Codec(Baobox.String()).Decode(toNumber).Encode((v: unknown) => String(v));
+      const tSchema = TypeBox.Codec(TypeBox.String()).Decode(toNumber).Encode((v: unknown) => String(v));
 
       const bResult = Decode(bSchema, '42');
       const tResult = TypeBoxValue.Decode(tSchema, '42');
@@ -305,8 +305,8 @@ describe('TypeBox value parity', () => {
     });
 
     it('Encode processes codec on schema with codec', () => {
-      const bSchema = Baobox.Codec(Baobox.String(), { decode: (v: unknown) => v, encode: (v: unknown) => `encoded:${v}` });
-      const tSchema = TypeBox.Codec(TypeBox.String(), { decode: (v: unknown) => v, encode: (v: unknown) => `encoded:${v}` });
+      const bSchema = Baobox.Codec(Baobox.String()).Decode((v: unknown) => v).Encode((v: unknown) => `encoded:${v}`);
+      const tSchema = TypeBox.Codec(TypeBox.String()).Decode((v: unknown) => v).Encode((v: unknown) => `encoded:${v}`);
 
       const bResult = Encode(bSchema, 'test');
       const tResult = TypeBoxValue.Encode(tSchema, 'test');
@@ -373,12 +373,12 @@ describe('TypeBox value parity', () => {
 
     it('union decode returns value when no variant matches', () => {
       const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
-      expect(Decode(schema, true)).toBe(true);
+      expect(Decode(schema, true as unknown)).toBe(true);
     });
 
     it('union encode returns value when no variant matches', () => {
       const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
-      expect(Encode(schema, true)).toBe(true);
+      expect(Encode(schema, true as unknown)).toBe(true);
     });
   });
 
