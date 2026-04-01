@@ -10,6 +10,7 @@ dist-types-check/
 !.npmrc.example
 .DS_Store
 .sisyphus/
+.claude/
 .idea/
 .vscode/
 *.tgz

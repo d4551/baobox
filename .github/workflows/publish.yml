@@ -117,7 +117,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: bun publish --access public --ignore-scripts --registry https://registry.npmjs.org
+        run: npm publish --access public --ignore-scripts --registry https://registry.npmjs.org
 
       - name: Skip duplicate version
         if: steps.registry.outputs.publish != 'true'
