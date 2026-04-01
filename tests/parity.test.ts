@@ -266,3 +266,40 @@ describe('Compile.Code', () => {
     expect(code).toContain('string');
   });
 });
+
+describe('baobox/typebox re-export', () => {
+  it('exports Type namespace with all key builders', async () => {
+    const mod = await import('../src/typebox.ts');
+    const required = [
+      'String', 'Number', 'Integer', 'Boolean', 'Null', 'Literal',
+      'Object', 'Array', 'Tuple', 'Record', 'Union', 'Intersect',
+      'Optional', 'Readonly', 'Enum', 'Ref', 'Partial', 'Required',
+      'Pick', 'Omit', 'KeyOf', 'Exclude', 'Extract', 'Unsafe',
+      'Codec', 'Refine', 'Immutable',
+    ];
+    for (const name of required) {
+      expect(typeof (mod as Record<string, unknown>)[name]).toBe('function');
+    }
+  });
+
+  it('exports Value namespace', async () => {
+    const mod = await import('../src/typebox.ts');
+    expect(typeof mod.Value).toBe('object');
+    expect(typeof mod.Value.Check).toBe('function');
+    expect(typeof mod.Value.Decode).toBe('function');
+    expect(typeof mod.Value.Encode).toBe('function');
+    expect(typeof mod.Value.Clean).toBe('function');
+    expect(typeof mod.Value.Default).toBe('function');
+    expect(typeof mod.Value.Create).toBe('function');
+  });
+
+  it('exports Compile', async () => {
+    const mod = await import('../src/typebox.ts');
+    expect(typeof mod.Compile).toBe('function');
+  });
+
+  it('exports Script', async () => {
+    const mod = await import('../src/typebox.ts');
+    expect(typeof mod.Script).toBe('function');
+  });
+});

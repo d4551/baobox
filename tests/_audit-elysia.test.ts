@@ -133,4 +133,52 @@ describe('AUDIT: Elysia adapter deep verification', () => {
     expect(Check(schema, 'a')).toBe(true);
     expect(Check(schema, 'd')).toBe(false);
   });
+
+  it('deep decoration stamps [Kind] on nested properties', () => {
+    const schema = t.Object({
+      user: t.Object({
+        name: t.String(),
+        tags: t.Array(t.String()),
+      }),
+      status: t.Union([t.Literal('active'), t.Literal('inactive')]),
+    });
+
+    const s = schema as unknown as Record<string | symbol, unknown>;
+    // Top-level
+    expect(s[Kind]).toBe('Object');
+    // Nested object property
+    const user = (schema.properties.user as unknown as Record<string | symbol, unknown>);
+    expect(user[Kind]).toBe('Object');
+    // Deeply nested string
+    const name = ((schema.properties.user as { properties: Record<string, unknown> }).properties.name as unknown as Record<string | symbol, unknown>);
+    expect(name[Kind]).toBe('String');
+    // Array
+    const tags = ((schema.properties.user as { properties: Record<string, unknown> }).properties.tags as unknown as Record<string | symbol, unknown>);
+    expect(tags[Kind]).toBe('Array');
+    // Union
+    const status = (schema.properties.status as unknown as Record<string | symbol, unknown>);
+    expect(status[Kind]).toBe('Union');
+    // Literal inside union
+    const variants = (schema.properties.status as { variants: unknown[] }).variants;
+    expect((variants[0] as Record<string | symbol, unknown>)[Kind]).toBe('Literal');
+  });
+
+  it('deep decoration handles Record key/value', () => {
+    const schema = t.Record(t.String(), t.Number());
+    const s = schema as unknown as Record<string | symbol, unknown>;
+    expect(s[Kind]).toBe('Record');
+    expect(((schema as { key: unknown }).key as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect(((schema as { value: unknown }).value as Record<string | symbol, unknown>)[Kind]).toBe('Number');
+  });
+
+  it('new builders in t namespace work', () => {
+    // Partial
+    const obj = t.Object({ name: t.String(), age: t.Integer() });
+    const partial = t.Partial(obj);
+    expect((partial as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Partial');
+
+    // Immutable
+    const immutable = t.Immutable(t.String());
+    expect((immutable as unknown as Record<string | symbol, unknown>)[Kind]).toBeDefined();
+  });
 });

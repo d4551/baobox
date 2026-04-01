@@ -8,8 +8,13 @@ interface ImportTransform {
 const IMPORT_TRANSFORMS: ImportTransform[] = [
   { from: /['"]@sinclair\/typebox\/value['"]/, to: "'baobox/value'" },
   { from: /['"]@sinclair\/typebox\/compiler['"]/, to: "'baobox/compile'" },
+  { from: /['"]@sinclair\/typebox\/compile['"]/, to: "'baobox/compile'" },
   { from: /['"]@sinclair\/typebox\/type['"]/, to: "'baobox/type'" },
   { from: /['"]@sinclair\/typebox\/errors['"]/, to: "'baobox/error'" },
+  { from: /['"]@sinclair\/typebox\/error['"]/, to: "'baobox/error'" },
+  { from: /['"]@sinclair\/typebox\/system['"]/, to: "'baobox/system'" },
+  { from: /['"]@sinclair\/typebox\/format['"]/, to: "'baobox/format'" },
+  { from: /['"]@sinclair\/typebox\/guard['"]/, to: "'baobox/guard'" },
   { from: /['"]@sinclair\/typebox['"]/, to: "'baobox'" },
 ];
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import type { Static } from '../src/type/index.ts';
+import type { Static, TObject, TString, TNumber, TOptional as TOptionalType } from '../src/type/index.ts';
 import Baobox, { Check } from '../src/index.ts';
 
 /** Compile-time bidirectional type assertion */
@@ -139,5 +139,108 @@ describe('AUDIT: Static<T> type inference', () => {
     assertTypeExtends<I, number>();
     assertTypeExtends<B, boolean>();
     assertTypeExtends<Nl, null>();
+  });
+
+  // ── Phase 3: Edge cases ──────────────────────────────────────────────
+
+  it('TPartial makes all properties optional', () => {
+    const base = Baobox.Object({ a: Baobox.String(), b: Baobox.Number() });
+    const schema = Baobox.Partial(base);
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, { a?: string; b?: number }>();
+
+    expect(Check(schema, {})).toBe(true);
+    expect(Check(schema, { a: 'hello' })).toBe(true);
+    expect(Check(schema, { a: 'hello', b: 42 })).toBe(true);
+  });
+
+  it('TRequired makes all properties required', () => {
+    const base = Baobox.Object({
+      a: Baobox.String(),
+      b: Baobox.Optional(Baobox.Number()),
+    });
+    const schema = Baobox.Required(base);
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, { a: string; b: number }>();
+
+    expect(Check(schema, { a: 'hello', b: 42 })).toBe(true);
+    expect(Check(schema, { a: 'hello' })).toBe(false); // b now required
+  });
+
+  it('TPick selects specific properties', () => {
+    const base = Baobox.Object({ a: Baobox.String(), b: Baobox.Number(), c: Baobox.Boolean() });
+    const schema = Baobox.Pick(base, ['a', 'c']);
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, { a: string; c: boolean }>();
+  });
+
+  it('TOmit removes specific properties', () => {
+    const base = Baobox.Object({ a: Baobox.String(), b: Baobox.Number(), c: Baobox.Boolean() });
+    const schema = Baobox.Omit(base, ['b']);
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, { a: string; c: boolean }>();
+  });
+
+  it('TIntersect of two objects', () => {
+    const schema = Baobox.Intersect([
+      Baobox.Object({ a: Baobox.String() }),
+      Baobox.Object({ b: Baobox.Number() }),
+    ]);
+    type Result = Static<typeof schema>;
+    type Expected = { a: string } & { b: number };
+    assertTypeExtends<Result, Expected>();
+
+    expect(Check(schema, { a: 'hello', b: 42 })).toBe(true);
+    expect(Check(schema, { a: 'hello' })).toBe(false);
+  });
+
+  it('TUnion with discriminated objects', () => {
+    const schema = Baobox.Union([
+      Baobox.Object({ type: Baobox.Literal('user'), name: Baobox.String() }),
+      Baobox.Object({ type: Baobox.Literal('admin'), level: Baobox.Integer() }),
+    ]);
+    type Result = Static<typeof schema>;
+    // Result should be union of the two object types
+    assertTypeExtends<Result, { type: 'user'; name: string } | { type: 'admin'; level: number }>();
+
+    expect(Check(schema, { type: 'user', name: 'Ada' })).toBe(true);
+    expect(Check(schema, { type: 'admin', level: 5 })).toBe(true);
+    expect(Check(schema, { type: 'guest' })).toBe(false);
+  });
+
+  it('TRecord with literal key', () => {
+    const schema = Baobox.Record(Baobox.Literal('x'), Baobox.Number());
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, Record<'x', number>>();
+  });
+
+  it('TRecord with enum key', () => {
+    const schema = Baobox.Record(Baobox.Enum(['a', 'b', 'c']), Baobox.Number());
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, Record<string, number>>();
+  });
+
+  it('deeply nested optional in object', () => {
+    const schema = Baobox.Object({
+      config: Baobox.Optional(Baobox.Object({
+        debug: Baobox.Optional(Baobox.Boolean()),
+        port: Baobox.Integer({ default: 3000 }),
+      })),
+    });
+    type Result = Static<typeof schema>;
+    // config is optional, debug is optional within config
+    const minimal: Result = {};
+    const withConfig: Result = { config: { port: 3000 } };
+    const full: Result = { config: { debug: true, port: 8080 } };
+    expect(Check(schema, minimal)).toBe(true);
+    expect(Check(schema, withConfig)).toBe(true);
+    expect(Check(schema, full)).toBe(true);
+  });
+
+  it('TKeyOf produces union of property names', () => {
+    const obj = Baobox.Object({ name: Baobox.String(), age: Baobox.Number() });
+    const schema = Baobox.KeyOf(obj);
+    type Result = Static<typeof schema>;
+    assertTypeExtends<Result, 'name' | 'age'>();
   });
 });

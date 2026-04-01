@@ -103,6 +103,25 @@ function codeToType(code: SchemaIssueCode): number {
   return CODE_TO_TYPE[code];
 }
 
+/**
+ * Resolve the value at a dot-separated path (e.g. "user.name" or "items.0").
+ * Also handles JSON pointer paths (e.g. "/user/name").
+ * Returns undefined if the path cannot be traversed.
+ */
+function resolveValueAtPath(root: unknown, path: string): unknown {
+  if (!path) return root;
+  // Support both dot-notation (native) and JSON pointer (slash) paths
+  const segments = path.startsWith('/')
+    ? path.split('/').filter(Boolean)
+    : path.split('.');
+  let current: unknown = root;
+  for (const segment of segments) {
+    if (current === null || current === undefined || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
 export function* ErrorsIterator(
   schema: TSchema,
   value: unknown,
@@ -119,8 +138,23 @@ export function* ErrorsIterator(
       type: codeToType(issue.code),
       schema,
       path: diagnostic.path,
-      value,
+      value: resolveValueAtPath(value, diagnostic.path),
       message: diagnostic.message,
     };
   }
+}
+
+/**
+ * Returns the first validation error, or undefined if the value is valid.
+ * Convenience function matching TypeBox's Value.Errors() usage pattern
+ * where code often only checks the first error.
+ */
+export function First(
+  schema: TSchema,
+  value: unknown,
+  context?: RuntimeContextArg,
+): ValueError | undefined {
+  const iter = ErrorsIterator(schema, value, context);
+  const result = iter.next();
+  return result.done ? undefined : result.value;
 }

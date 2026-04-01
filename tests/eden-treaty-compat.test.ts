@@ -188,4 +188,73 @@ describe('Eden Treaty type compatibility', () => {
       expect(Check(paginatedResponse, response)).toBe(true);
     });
   });
+
+  describe('advanced Eden Treaty patterns', () => {
+    it('discriminated union response', () => {
+      const schema = Baobox.Union([
+        Baobox.Object({ status: Baobox.Literal('success'), data: Baobox.Object({ id: Baobox.String() }) }),
+        Baobox.Object({ status: Baobox.Literal('error'), message: Baobox.String() }),
+      ]);
+
+      type Result = Static<typeof schema>;
+
+      // Both variants should be assignable
+      assertTypeExtends<{ status: 'success'; data: { id: string } }, Result>();
+      assertTypeExtends<{ status: 'error'; message: string }, Result>();
+
+      expect(Check(schema, { status: 'success', data: { id: '1' } })).toBe(true);
+      expect(Check(schema, { status: 'error', message: 'not found' })).toBe(true);
+    });
+
+    it('query parameters with optional fields', () => {
+      const querySchema = Baobox.Object({
+        search: Baobox.Optional(Baobox.String()),
+        page: Baobox.Optional(Baobox.Integer({ minimum: 1 })),
+        limit: Baobox.Optional(Baobox.Integer({ minimum: 1, maximum: 100 })),
+        sort: Baobox.Optional(Baobox.Enum(['asc', 'desc'])),
+      });
+
+      type Query = Static<typeof querySchema>;
+
+      assertTypeExtends<Query, { search?: string | undefined; page?: number | undefined; limit?: number | undefined; sort?: string | undefined }>();
+
+      expect(Check(querySchema, {})).toBe(true);
+      expect(Check(querySchema, { search: 'hello', page: 1 })).toBe(true);
+      expect(Check(querySchema, { page: 0 })).toBe(false); // minimum 1
+    });
+
+    it('intersect type for extended response', () => {
+      const base = Baobox.Object({ id: Baobox.String(), createdAt: Baobox.String() });
+      const extended = Baobox.Intersect([
+        base,
+        Baobox.Object({ name: Baobox.String(), email: Baobox.String() }),
+      ]);
+
+      type Extended = Static<typeof extended>;
+
+      assertTypeExtends<Extended, { id: string; createdAt: string } & { name: string; email: string }>();
+
+      expect(Check(extended, { id: '1', createdAt: '2024-01-01', name: 'Ada', email: 'ada@example.com' })).toBe(true);
+    });
+
+    it('bidirectional type assignability for all common patterns', () => {
+      // Simple object: both directions
+      const obj = Baobox.Object({ name: Baobox.String() });
+      type Obj = Static<typeof obj>;
+      assertTypeExtends<Obj, { name: string }>();
+      assertTypeExtends<{ name: string }, Obj>();
+
+      // Array of objects: both directions
+      const arr = Baobox.Array(Baobox.Object({ id: Baobox.String() }));
+      type Arr = Static<typeof arr>;
+      assertTypeExtends<Arr, Array<{ id: string }>>();
+      assertTypeExtends<Array<{ id: string }>, Arr>();
+
+      // Record: both directions
+      const rec = Baobox.Record(Baobox.String(), Baobox.Number());
+      type Rec = Static<typeof rec>;
+      assertTypeExtends<Rec, Record<string, number>>();
+      assertTypeExtends<Record<string, number>, Rec>();
+    });
+  });
 });
