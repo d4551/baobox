@@ -77,7 +77,7 @@ export function decorateSchema<T extends TSchema>(schema: T): T {
     for (const v of s.variants as TSchema[]) decorateSchema(v);
   }
 
-  // Record key/value
+  // Record key/value (both hold nested TSchema like other branches — avoid '~kind' asymmetry)
   if (s.key && typeof s.key === 'object') decorateSchema(s.key as TSchema);
   if (s.value && typeof s.value === 'object') decorateSchema(s.value as TSchema);
 
