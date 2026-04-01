@@ -146,9 +146,7 @@ function EncodeInternal(
     case 'Record': {
       if (!isPlainRecord(value)) return value;
       const valueSchema = schemaSchemaField(schema, 'value');
-      if (valueSchema === undefined) {
-        return value;
-      }
+      if (!valueSchema) return value;
       const result: Record<string, unknown> = {};
       for (const [key, entryValue] of recordEntries(value)) {
         result[key] = EncodeInternal(valueSchema, entryValue, refs, checkContext);

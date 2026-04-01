@@ -134,16 +134,14 @@ function resolveSchemaAtPath(root: TSchema, path: string): TSchema {
     : path.split('.');
   let current: TSchema = root;
   for (const segment of segments) {
-    // Peel all wrapper layers before resolving this path segment (e.g. Optional(Immutable(Object(...))))
-    let unwrapKind = schemaKind(current);
-    while (unwrapKind === 'Optional' || unwrapKind === 'Readonly' || unwrapKind === 'Immutable'
-      || unwrapKind === 'Refine') {
+    // Unwrap all wrapper layers (Optional, Readonly, Immutable, Refine can nest)
+    let resolvedKind = schemaKind(current);
+    while (resolvedKind === 'Optional' || resolvedKind === 'Readonly' || resolvedKind === 'Immutable' || resolvedKind === 'Refine') {
       const inner = schemaItem(current) ?? schemaInner(current);
       if (!inner) break;
       current = inner;
-      unwrapKind = schemaKind(current);
+      resolvedKind = schemaKind(current);
     }
-    const resolvedKind = schemaKind(current);
     if (resolvedKind === 'Object') {
       const props = (current as Record<string, unknown>).properties as Record<string, TSchema> | undefined;
       if (props && segment in props) {

@@ -20,10 +20,8 @@ import {
   schemaKind,
   schemaOptionalKeys,
   schemaPatternProperties,
-  schemaRefinements,
   schemaSchemaField,
   schemaSchemaListField,
-  schemaUnknownField,
 } from '../shared/schema-access.js';
 
 export type EmitSchema = (schema: TSchema, valueExpr: string) => string;
@@ -278,21 +276,9 @@ export function emitStructuredSchemaCheck(
     case 'Readonly':
     case 'Immutable':
       return emitSchema(schemaItem(currentSchema) ?? currentSchema, valueExpr);
-    case 'Refine': {
-      if (schemaUnknownField(currentSchema, '~uint8arrayCodec') === true) {
-        return `__check(${valueExpr})`;
-      }
-      const item = schemaItem(currentSchema);
-      const innerCheck = emitSchema(item ?? currentSchema, valueExpr);
-      const refinements = schemaRefinements(currentSchema);
-      if (refinements.length === 0) {
-        return innerCheck;
-      }
-      const refineChecks = refinements.map(
-        (entry) => `(${String(entry.refine)})(${valueExpr})`,
-      );
-      return `(${innerCheck}) && ${refineChecks.join(' && ')}`;
-    }
+    case 'Refine':
+      // Refine has runtime callbacks that can't be inlined into JIT code
+      return undefined;
     case 'Enum':
       return emitEnumCheck(currentSchema as TEnum, valueExpr);
     case 'Record':
