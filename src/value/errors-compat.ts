@@ -181,7 +181,7 @@ export function* ErrorsIterator(
     const diagnostic = localizeSchemaIssueWithCatalog(issue, catalog, locale);
     yield {
       type: codeToType(issue.code),
-      schema: resolveSchemaAtPath(schema, diagnostic.path),
+      schema: issue.schema ?? resolveSchemaAtPath(schema, diagnostic.path),
       path: diagnostic.path,
       value: resolveValueAtPath(value, diagnostic.path),
       message: diagnostic.message,

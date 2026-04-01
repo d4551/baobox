@@ -21,8 +21,8 @@ interface TBaseSchemaLike extends TSchema {
   Errors?: (input: unknown) => object[];
 }
 
-function invalidTypeIssue(path: readonly string[], expected: string, actual?: string): SchemaIssue[] {
-  return [createSchemaIssue(schemaPath(path), 'INVALID_TYPE', actual === undefined ? { expected } : { expected, actual })];
+function invalidTypeIssue(schema: TSchema, path: readonly string[], expected: string, actual?: string): SchemaIssue[] {
+  return [createSchemaIssue(schemaPath(path), 'INVALID_TYPE', actual === undefined ? { expected } : { expected, actual }, schema)];
 }
 
 function collectStringIssues(schema: TString, value: unknown, path: readonly string[], refs: ReferenceMap): SchemaIssue[] {
@@ -30,21 +30,21 @@ function collectStringIssues(schema: TString, value: unknown, path: readonly str
   const currentPath = schemaPath(path);
 
   if (typeof value !== 'string') {
-    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'string', actual: typeof value }));
+    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'string', actual: typeof value }, schema));
     return issues;
   }
 
   if (schema.minLength !== undefined && value.length < schema.minLength) {
-    issues.push(createSchemaIssue(currentPath, 'MIN_LENGTH', { label: 'String length', minimum: schema.minLength }));
+    issues.push(createSchemaIssue(currentPath, 'MIN_LENGTH', { label: 'String length', minimum: schema.minLength }, schema));
   }
   if (schema.maxLength !== undefined && value.length > schema.maxLength) {
-    issues.push(createSchemaIssue(currentPath, 'MAX_LENGTH', { label: 'String length', maximum: schema.maxLength }));
+    issues.push(createSchemaIssue(currentPath, 'MAX_LENGTH', { label: 'String length', maximum: schema.maxLength }, schema));
   }
   if (schema.pattern !== undefined && !new RegExp(schema.pattern).test(value)) {
-    issues.push(createSchemaIssue(currentPath, 'PATTERN', { label: 'String', pattern: schema.pattern }));
+    issues.push(createSchemaIssue(currentPath, 'PATTERN', { label: 'String', pattern: schema.pattern }, schema));
   }
   if (typeof schema.format === 'string' && !CheckInternal(TypeString({ format: schema.format }), value, refs)) {
-    issues.push(createSchemaIssue(currentPath, 'FORMAT', { label: 'String', format: schema.format }));
+    issues.push(createSchemaIssue(currentPath, 'FORMAT', { label: 'String', format: schema.format }, schema));
   }
 
   return issues;
@@ -60,27 +60,27 @@ function collectNumberIssues(
   const currentPath = schemaPath(path);
 
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'number', actual: typeof value }));
+    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'number', actual: typeof value }, schema));
     return issues;
   }
 
   if (integerOnly && !Number.isInteger(value)) {
-    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'integer' }));
+    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'integer' }, schema));
   }
   if (schema.minimum !== undefined && value < schema.minimum) {
-    issues.push(createSchemaIssue(currentPath, 'MINIMUM', { minimum: schema.minimum }));
+    issues.push(createSchemaIssue(currentPath, 'MINIMUM', { minimum: schema.minimum }, schema));
   }
   if (schema.maximum !== undefined && value > schema.maximum) {
-    issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { maximum: schema.maximum }));
+    issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { maximum: schema.maximum }, schema));
   }
   if (schema.exclusiveMinimum !== undefined && value <= schema.exclusiveMinimum) {
-    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MINIMUM', { minimum: schema.exclusiveMinimum }));
+    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MINIMUM', { minimum: schema.exclusiveMinimum }, schema));
   }
   if (schema.exclusiveMaximum !== undefined && value >= schema.exclusiveMaximum) {
-    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MAXIMUM', { maximum: schema.exclusiveMaximum }));
+    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MAXIMUM', { maximum: schema.exclusiveMaximum }, schema));
   }
   if (schema.multipleOf !== undefined && value % schema.multipleOf !== 0) {
-    issues.push(createSchemaIssue(currentPath, 'MULTIPLE_OF', { divisor: schema.multipleOf }));
+    issues.push(createSchemaIssue(currentPath, 'MULTIPLE_OF', { divisor: schema.multipleOf }, schema));
   }
 
   return issues;
@@ -90,22 +90,22 @@ function collectBigIntIssues(schema: TBigInt, value: unknown, path: readonly str
   const issues: SchemaIssue[] = [];
   const currentPath = schemaPath(path);
   if (typeof value !== 'bigint') {
-    return invalidTypeIssue(path, 'bigint', typeof value);
+    return invalidTypeIssue(schema, path, 'bigint', typeof value);
   }
   if (schema.minimum !== undefined && value < schema.minimum) {
-    issues.push(createSchemaIssue(currentPath, 'MINIMUM', { minimum: schema.minimum }));
+    issues.push(createSchemaIssue(currentPath, 'MINIMUM', { minimum: schema.minimum }, schema));
   }
   if (schema.maximum !== undefined && value > schema.maximum) {
-    issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { maximum: schema.maximum }));
+    issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { maximum: schema.maximum }, schema));
   }
   if (schema.exclusiveMinimum !== undefined && value <= schema.exclusiveMinimum) {
-    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MINIMUM', { minimum: schema.exclusiveMinimum }));
+    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MINIMUM', { minimum: schema.exclusiveMinimum }, schema));
   }
   if (schema.exclusiveMaximum !== undefined && value >= schema.exclusiveMaximum) {
-    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MAXIMUM', { maximum: schema.exclusiveMaximum }));
+    issues.push(createSchemaIssue(currentPath, 'EXCLUSIVE_MAXIMUM', { maximum: schema.exclusiveMaximum }, schema));
   }
   if (schema.multipleOf !== undefined && value % schema.multipleOf !== 0n) {
-    issues.push(createSchemaIssue(currentPath, 'MULTIPLE_OF', { divisor: schema.multipleOf }));
+    issues.push(createSchemaIssue(currentPath, 'MULTIPLE_OF', { divisor: schema.multipleOf }, schema));
   }
   return issues;
 }
@@ -114,14 +114,14 @@ function collectDateIssues(schema: TDate, value: unknown, path: readonly string[
   const issues: SchemaIssue[] = [];
   const currentPath = schemaPath(path);
   if (!(value instanceof globalThis.Date) || Number.isNaN(value.getTime())) {
-    return invalidTypeIssue(path, 'Date instance');
+    return invalidTypeIssue(schema, path, 'Date instance');
   }
   const timestamp = value.getTime();
   if (schema.minimumTimestamp !== undefined && timestamp < schema.minimumTimestamp) {
-    issues.push(createSchemaIssue(currentPath, 'MINIMUM', { label: 'Date timestamp', minimum: schema.minimumTimestamp }));
+    issues.push(createSchemaIssue(currentPath, 'MINIMUM', { label: 'Date timestamp', minimum: schema.minimumTimestamp }, schema));
   }
   if (schema.maximumTimestamp !== undefined && timestamp > schema.maximumTimestamp) {
-    issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { label: 'Date timestamp', maximum: schema.maximumTimestamp }));
+    issues.push(createSchemaIssue(currentPath, 'MAXIMUM', { label: 'Date timestamp', maximum: schema.maximumTimestamp }, schema));
   }
   return issues;
 }
@@ -129,16 +129,16 @@ function collectDateIssues(schema: TDate, value: unknown, path: readonly string[
 function collectLiteralIssues(schema: TLiteral<string | number | boolean>, value: unknown, path: readonly string[]): SchemaIssue[] {
   return value === schema.const
     ? []
-    : [createSchemaIssue(schemaPath(path), 'INVALID_CONST', { expectedValue: JSON.stringify(schema.const) })];
+    : [createSchemaIssue(schemaPath(path), 'INVALID_CONST', { expectedValue: JSON.stringify(schema.const) }, schema)];
 }
 
 function collectEnumIssues(schema: TEnum, value: unknown, path: readonly string[]): SchemaIssue[] {
   if (typeof value !== 'string') {
-    return invalidTypeIssue(path, 'string', typeof value);
+    return invalidTypeIssue(schema, path, 'string', typeof value);
   }
   return schema.values.includes(value)
     ? []
-    : [createSchemaIssue(schemaPath(path), 'ENUM', { values: schema.values })];
+    : [createSchemaIssue(schemaPath(path), 'ENUM', { values: schema.values }, schema)];
 }
 
 function collectTemplateLiteralIssues(
@@ -147,24 +147,24 @@ function collectTemplateLiteralIssues(
   path: readonly string[],
 ): SchemaIssue[] {
   if (typeof value !== 'string') {
-    return invalidTypeIssue(path, 'string', typeof value);
+    return invalidTypeIssue(schema as TSchema, path, 'string', typeof value);
   }
   return new RegExp(schema.patterns.join('|')).test(value)
     ? []
-    : [createSchemaIssue(schemaPath(path), 'PATTERN', { label: 'String', patterns: schema.patterns })];
+    : [createSchemaIssue(schemaPath(path), 'PATTERN', { label: 'String', patterns: schema.patterns }, schema as TSchema)];
 }
 
 function collectUint8ArrayIssues(schema: TUint8Array, value: unknown, path: readonly string[]): SchemaIssue[] {
   const issues: SchemaIssue[] = [];
   const currentPath = schemaPath(path);
   if (!(value instanceof globalThis.Uint8Array)) {
-    return invalidTypeIssue(path, 'Uint8Array', typeof value);
+    return invalidTypeIssue(schema, path, 'Uint8Array', typeof value);
   }
   if (schema.minByteLength !== undefined && value.byteLength < schema.minByteLength) {
-    issues.push(createSchemaIssue(currentPath, 'MIN_LENGTH', { label: 'Uint8Array byteLength', minimum: schema.minByteLength }));
+    issues.push(createSchemaIssue(currentPath, 'MIN_LENGTH', { label: 'Uint8Array byteLength', minimum: schema.minByteLength }, schema));
   }
   if (schema.maxByteLength !== undefined && value.byteLength > schema.maxByteLength) {
-    issues.push(createSchemaIssue(currentPath, 'MAX_LENGTH', { label: 'Uint8Array byteLength', maximum: schema.maxByteLength }));
+    issues.push(createSchemaIssue(currentPath, 'MAX_LENGTH', { label: 'Uint8Array byteLength', maximum: schema.maxByteLength }, schema));
   }
   return issues;
 }
@@ -190,19 +190,19 @@ export function collectPrimitiveIssues(
     case 'Date':
       return collectDateIssues(schema as TDate, value, path);
     case 'Boolean':
-      return typeof value === 'boolean' ? [] : invalidTypeIssue(path, 'boolean', typeof value);
+      return typeof value === 'boolean' ? [] : invalidTypeIssue(schema, path, 'boolean', typeof value);
     case 'Null':
-      return value === null ? [] : invalidTypeIssue(path, 'null');
+      return value === null ? [] : invalidTypeIssue(schema, path, 'null');
     case 'Literal':
       return collectLiteralIssues(schema as TLiteral<string | number | boolean>, value, path);
     case 'Enum':
       return collectEnumIssues(schema as TEnum, value, path);
     case 'Void':
-      return value === undefined || value === null ? [] : invalidTypeIssue(path, 'void (undefined or null)');
+      return value === undefined || value === null ? [] : invalidTypeIssue(schema, path, 'void (undefined or null)');
     case 'Undefined':
-      return value === undefined ? [] : invalidTypeIssue(path, 'undefined');
+      return value === undefined ? [] : invalidTypeIssue(schema, path, 'undefined');
     case 'Never':
-      return [createSchemaIssue(currentPath, 'NEVER')];
+      return [createSchemaIssue(currentPath, 'NEVER', {}, schema)];
     case 'TemplateLiteral':
       return collectTemplateLiteralIssues(schema as { '~kind': 'TemplateLiteral'; patterns: string[] }, value, path);
     case 'Uint8Array':
@@ -210,25 +210,25 @@ export function collectPrimitiveIssues(
     case 'Identifier':
       return typeof value === 'string' && /^[$A-Z_a-z][$\w]*$/.test(value)
         ? []
-        : [createSchemaIssue(currentPath, typeof value === 'string' ? 'IDENTIFIER' : 'INVALID_TYPE', { expected: 'string', actual: typeof value })];
+        : [createSchemaIssue(currentPath, typeof value === 'string' ? 'IDENTIFIER' : 'INVALID_TYPE', { expected: 'string', actual: typeof value }, schema)];
     case 'Promise':
-      return isPromiseLike(value) ? [] : invalidTypeIssue(path, 'Promise-like value');
+      return isPromiseLike(value) ? [] : invalidTypeIssue(schema, path, 'Promise-like value');
     case 'Iterator':
-      return isIteratorLike(value) ? [] : invalidTypeIssue(path, 'iterator value');
+      return isIteratorLike(value) ? [] : invalidTypeIssue(schema, path, 'iterator value');
     case 'AsyncIterator':
-      return isAsyncIteratorLike(value) ? [] : invalidTypeIssue(path, 'async iterator value');
+      return isAsyncIteratorLike(value) ? [] : invalidTypeIssue(schema, path, 'async iterator value');
     case 'Function':
-      return typeof value === 'function' ? [] : invalidTypeIssue(path, 'function', typeof value);
+      return typeof value === 'function' ? [] : invalidTypeIssue(schema, path, 'function', typeof value);
     case 'Constructor':
       return typeof value === 'function' && 'prototype' in value
         ? []
-        : invalidTypeIssue(path, 'constructor function');
+        : invalidTypeIssue(schema, path, 'constructor function');
     case 'Symbol':
-      return typeof value === 'symbol' ? [] : invalidTypeIssue(path, 'symbol', typeof value);
+      return typeof value === 'symbol' ? [] : invalidTypeIssue(schema, path, 'symbol', typeof value);
     case 'Base': {
       const baseSchema = schema as TBaseSchemaLike;
       if (typeof baseSchema.Check === 'function' && !baseSchema.Check(value)) {
-        return [createSchemaIssue(currentPath, 'BASE')];
+        return [createSchemaIssue(currentPath, 'BASE', {}, baseSchema)];
       }
       return [];
     }

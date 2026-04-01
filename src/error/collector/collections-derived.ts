@@ -32,7 +32,7 @@ export function collectDerivedCollectionIssues(
       const variantIssues = unionSchema.variants.map((variant) => collectSchemaIssues(variant, value, path, refs));
       return variantIssues.some((entry) => entry.length === 0)
         ? []
-        : [createSchemaIssue(currentPath, 'UNION')];
+        : [createSchemaIssue(currentPath, 'UNION', {}, unionSchema)];
     }
     case 'Intersect': {
       const intersectSchema = schema as TIntersect;
@@ -50,9 +50,9 @@ export function collectDerivedCollectionIssues(
       const keyOfSchema = schema as TKeyOf<TObject>;
       const keys = Object.keys(keyOfSchema.object.properties);
       if (typeof value !== 'string') {
-        return [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'string', actual: typeof value })];
+        return [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'string', actual: typeof value }, keyOfSchema)];
       }
-      return keys.includes(value) ? [] : [createSchemaIssue(currentPath, 'KEYOF', { values: keys })];
+      return keys.includes(value) ? [] : [createSchemaIssue(currentPath, 'KEYOF', { values: keys }, keyOfSchema)];
     }
     case 'Pick': {
       const pickSchema = schema as TPick<TObject, string>;
@@ -78,12 +78,12 @@ export function collectDerivedCollectionIssues(
         CheckInternal(candidateSchema, candidateValue, new Map()),
       );
       if (candidates.length === 0) {
-        return [createSchemaIssue(currentPath, 'INDEX')];
+        return [createSchemaIssue(currentPath, 'INDEX', {}, indexSchema)];
       }
       const candidateIssues = candidates.map((candidate) => collectSchemaIssues(candidate, value, path, refs));
       return candidateIssues.some((entry) => entry.length === 0)
         ? []
-        : [createSchemaIssue(currentPath, 'INDEX')];
+        : [createSchemaIssue(currentPath, 'INDEX', {}, indexSchema)];
     }
     case 'Mapped':
       return collectSchemaIssues((schema as TMapped<TObject>).object, value, path, refs);
