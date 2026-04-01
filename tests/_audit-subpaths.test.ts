@@ -50,9 +50,11 @@ describe('AUDIT: subpath exports resolve', () => {
     expect(exports['./standard']).toBeDefined();
 
     // Verify bun conditions point to src/
-    for (const [key, entry] of Object.entries(exports)) {
-      const bunPath = (entry as Record<string, string>).bun;
-      expect(bunPath).toBeDefined();
+    for (const [, entry] of Object.entries(exports)) {
+      const bunPath = (entry as Record<string, string | undefined>).bun;
+      if (bunPath === undefined) {
+        throw new Error('Missing bun export condition');
+      }
       expect(bunPath.startsWith('./src/')).toBe(true);
     }
   });

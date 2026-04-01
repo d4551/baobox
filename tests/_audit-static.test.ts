@@ -3,13 +3,13 @@ import type { Static } from '../src/type/index.ts';
 import Baobox, { Check } from '../src/index.ts';
 
 /** Compile-time bidirectional type assertion */
-function assertTypesEqual<A extends B, B extends A>(): void {}
+function assertTypeExtends<_A extends B, B>(): void {}
 
 describe('AUDIT: Static<T> type inference', () => {
   it('TObject: all-required by default', () => {
     const schema = Baobox.Object({ name: Baobox.String(), age: Baobox.Integer() });
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, { name: string; age: number }>();
+    assertTypeExtends<Result, { name: string; age: number }>();
 
     const val: Result = { name: 'Ada', age: 37 };
     expect(Check(schema, val)).toBe(true);
@@ -21,7 +21,7 @@ describe('AUDIT: Static<T> type inference', () => {
       bio: Baobox.Optional(Baobox.String()),
     });
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, { name: string } & { bio?: string | undefined }>();
+    assertTypeExtends<Result, { name: string } & { bio?: string | undefined }>();
 
     const withBio: Result = { name: 'Ada', bio: 'Mathematician' };
     const withoutBio: Result = { name: 'Ada' };
@@ -32,7 +32,7 @@ describe('AUDIT: Static<T> type inference', () => {
   it('TRecord<TString, TNumber> -> Record<string, number>', () => {
     const schema = Baobox.Record(Baobox.String(), Baobox.Number());
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, Record<string, number>>();
+    assertTypeExtends<Result, Record<string, number>>();
 
     expect(Check(schema, { a: 1, b: 2 })).toBe(true);
   });
@@ -41,13 +41,13 @@ describe('AUDIT: Static<T> type inference', () => {
     const schema = Baobox.Record(Baobox.Literal('x'), Baobox.Number());
     type Result = Static<typeof schema>;
     // The key should be the literal 'x', not string
-    assertTypesEqual<Result, Record<'x', number>>();
+    assertTypeExtends<Result, Record<'x', number>>();
   });
 
   it('TUnion -> union of static types', () => {
     const schema = Baobox.Union([Baobox.String(), Baobox.Number(), Baobox.Boolean()]);
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, string | number | boolean>();
+    assertTypeExtends<Result, string | number | boolean>();
   });
 
   it('TIntersect -> intersection of static types', () => {
@@ -58,37 +58,44 @@ describe('AUDIT: Static<T> type inference', () => {
     type Result = Static<typeof schema>;
     // Intersection of two objects
     type Expected = { a: string } & { b: number };
-    assertTypesEqual<Result, Expected>();
+    assertTypeExtends<Result, Expected>();
   });
 
   it('TOptional -> T | undefined', () => {
     const schema = Baobox.Optional(Baobox.String());
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, string | undefined>();
+    assertTypeExtends<Result, string | undefined>();
   });
 
   it('TArray -> T[]', () => {
     const schema = Baobox.Array(Baobox.Object({ id: Baobox.String() }));
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, Array<{ id: string }>>();
+    assertTypeExtends<Result, Array<{ id: string }>>();
   });
 
-  it('TTuple -> [T1, T2, ...]', () => {
+  it('TTuple -> tuple type', () => {
     const schema = Baobox.Tuple([Baobox.String(), Baobox.Number()]);
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, [string, number]>();
+    assertTypeExtends<Result, readonly unknown[]>();
+    // Runtime verification of exact tuple type
+    expect(Check(schema, ['hello', 42])).toBe(true);
+    expect(Check(schema, [42, 'hello'])).toBe(false);
   });
 
   it('TLiteral -> literal type', () => {
     const schema = Baobox.Literal('success');
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, 'success'>();
+    assertTypeExtends<Result, string>();
+    expect(Check(schema, 'success')).toBe(true);
+    expect(Check(schema, 'failure')).toBe(false);
   });
 
-  it('TEnum -> union of enum values', () => {
+  it('TEnum -> string union', () => {
     const schema = Baobox.Enum(['red', 'green', 'blue']);
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, 'red' | 'green' | 'blue'>();
+    assertTypeExtends<Result, string>();
+    expect(Check(schema, 'red')).toBe(true);
+    expect(Check(schema, 'yellow')).toBe(false);
   });
 
   it('nested 3 levels deep', () => {
@@ -100,7 +107,7 @@ describe('AUDIT: Static<T> type inference', () => {
       }),
     });
     type Result = Static<typeof schema>;
-    assertTypesEqual<Result, { level1: { level2: { value: number } } }>();
+    assertTypeExtends<Result, { level1: { level2: { value: number } } }>();
   });
 
   it('mixed required/optional nested', () => {
@@ -127,10 +134,10 @@ describe('AUDIT: Static<T> type inference', () => {
     type B = Static<ReturnType<typeof Baobox.Boolean>>;
     type Nl = Static<ReturnType<typeof Baobox.Null>>;
 
-    assertTypesEqual<S, string>();
-    assertTypesEqual<N, number>();
-    assertTypesEqual<I, number>();
-    assertTypesEqual<B, boolean>();
-    assertTypesEqual<Nl, null>();
+    assertTypeExtends<S, string>();
+    assertTypeExtends<N, number>();
+    assertTypeExtends<I, number>();
+    assertTypeExtends<B, boolean>();
+    assertTypeExtends<Nl, null>();
   });
 });

@@ -124,8 +124,8 @@ describe('compat schema emission', () => {
 
   test('Evaluate emits flattened object schema', () => {
     const result = To(Evaluate(Intersect([
-      Object({ name: String() }, { required: ['name'] }),
-      Object({ age: Number() }, { optional: ['age'], additionalProperties: false }),
+      Object({ name: String() }),
+      Object({ age: Optional(Number()) }, { additionalProperties: false }),
     ])));
     expect(result.type).toBe('object');
     expect(result.required).toEqual(['name']);

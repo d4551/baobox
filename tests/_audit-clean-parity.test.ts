@@ -3,6 +3,11 @@ import Baobox, { Check, Clean, Convert, Default } from '../src/index.ts';
 import TypeBoxValue from 'typebox/value';
 import TypeBox from 'typebox';
 
+/** Compare two unknown values for deep equality without fighting toEqual generics */
+function expectSameOutput(baobox: unknown, typebox: unknown): void {
+  expect(JSON.stringify(baobox)).toBe(JSON.stringify(typebox));
+}
+
 describe('AUDIT: Clean behavior parity with TypeBox', () => {
   it('strips extra properties by default (matching TypeBox)', () => {
     const bSchema = Baobox.Object({ name: Baobox.String() });
@@ -12,7 +17,7 @@ describe('AUDIT: Clean behavior parity with TypeBox', () => {
     const bResult = Clean(bSchema, structuredClone(input));
     const tResult = TypeBoxValue.Clean(tSchema, structuredClone(input));
 
-    expect(bResult).toEqual(tResult);
+    expectSameOutput(bResult, tResult);
     expect(bResult).toEqual({ name: 'Ada' });
   });
 
@@ -21,7 +26,7 @@ describe('AUDIT: Clean behavior parity with TypeBox', () => {
 
     const input = { name: 'Ada', extra: true };
     const result = Clean(schema, structuredClone(input));
-    expect(result).toEqual({ name: 'Ada', extra: true });
+    expect(result).toEqual({ name: 'Ada', extra: true } as never);
   });
 
   it('strips nested extra properties in nested objects', () => {
@@ -36,7 +41,7 @@ describe('AUDIT: Clean behavior parity with TypeBox', () => {
     const bResult = Clean(bSchema, structuredClone(input));
     const tResult = TypeBoxValue.Clean(tSchema, structuredClone(input));
 
-    expect(bResult).toEqual(tResult);
+    expectSameOutput(bResult, tResult);
     expect(bResult).toEqual({ user: { name: 'Ada' } });
   });
 
@@ -48,7 +53,7 @@ describe('AUDIT: Clean behavior parity with TypeBox', () => {
     const bResult = Clean(bSchema, structuredClone(input));
     const tResult = TypeBoxValue.Clean(tSchema, structuredClone(input));
 
-    expect(bResult).toEqual(tResult);
+    expectSameOutput(bResult, tResult);
     expect(bResult).toEqual([{ id: '1' }, { id: '2' }]);
   });
 });
@@ -62,7 +67,7 @@ describe('AUDIT: Convert behavior parity', () => {
     const bResult = Convert(bSchema, structuredClone(input));
     const tResult = TypeBoxValue.Convert(tSchema, structuredClone(input));
 
-    expect(bResult).toEqual(tResult);
+    expectSameOutput(bResult, tResult);
   });
 });
 
@@ -85,6 +90,6 @@ describe('AUDIT: Default behavior parity', () => {
     const bResult = Default(bSchema, structuredClone(input));
     const tResult = TypeBoxValue.Default(tSchema, structuredClone(input));
 
-    expect(bResult).toEqual(tResult);
+    expectSameOutput(bResult, tResult);
   });
 });

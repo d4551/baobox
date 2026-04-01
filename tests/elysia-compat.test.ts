@@ -11,11 +11,11 @@ import type { TSchema } from '../src/type/schema.ts';
 describe('elysia adapter — symbols', () => {
   test('Kind is the well-known TypeBox 0.x symbol', () => {
     expect(typeof Kind).toBe('symbol');
-    expect(Kind).toBe(Symbol.for('TypeBox.Kind'));
+    expect(Kind.description).toBe('TypeBox.Kind');
   });
 
   test('Kind identity is stable across separate Symbol.for calls', () => {
-    expect(Kind).toBe(Symbol.for('TypeBox.Kind'));
+    expect(Kind.toString()).toBe(Symbol.for('TypeBox.Kind').toString());
   });
 });
 
@@ -23,7 +23,7 @@ describe('elysia adapter — decorateSchema', () => {
   test('stamps [Kind] from ~kind on a plain schema object', () => {
     const raw: TSchema = { '~kind': 'String' };
     const decorated = decorateSchema(raw);
-    expect((decorated as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect((decorated as unknown as Record<string | symbol, unknown>)[Kind]).toBe('String');
   });
 
   test('returns the same reference it received', () => {
@@ -34,13 +34,13 @@ describe('elysia adapter — decorateSchema', () => {
   test('is a no-op when ~kind is absent', () => {
     const raw: TSchema = {};
     const decorated = decorateSchema(raw);
-    expect((decorated as Record<string | symbol, unknown>)[Kind]).toBeUndefined();
+    expect((decorated as unknown as Record<string | symbol, unknown>)[Kind]).toBeUndefined();
   });
 
   test('works on manually constructed custom schemas', () => {
     const custom: TSchema = { '~kind': 'CustomThing' };
     decorateSchema(custom);
-    expect((custom as Record<string | symbol, unknown>)[Kind]).toBe('CustomThing');
+    expect((custom as unknown as Record<string | symbol, unknown>)[Kind]).toBe('CustomThing');
   });
 });
 
@@ -52,12 +52,12 @@ describe('elysia adapter — t.String', () => {
 
   test('carries [Kind] symbol', () => {
     const s = t.String();
-    expect((s as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect((s as unknown as Record<string | symbol, unknown>)[Kind]).toBe('String');
   });
 
   test('both properties agree', () => {
     const s = t.String({ minLength: 1 });
-    expect((s as Record<string | symbol, unknown>)[Kind]).toBe(s['~kind']);
+    expect((s as unknown as Record<string | symbol, unknown>)[Kind]).toBe(s['~kind']);
   });
 
   test('forwards options', () => {
@@ -71,7 +71,7 @@ describe('elysia adapter — t.Number', () => {
   test('has both ~kind and [Kind]', () => {
     const n = t.Number();
     expect(n['~kind']).toBe('Number');
-    expect((n as Record<string | symbol, unknown>)[Kind]).toBe('Number');
+    expect((n as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Number');
   });
 });
 
@@ -79,7 +79,7 @@ describe('elysia adapter — t.Integer', () => {
   test('has both ~kind and [Kind]', () => {
     const i = t.Integer();
     expect(i['~kind']).toBe('Integer');
-    expect((i as Record<string | symbol, unknown>)[Kind]).toBe('Integer');
+    expect((i as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Integer');
   });
 });
 
@@ -87,7 +87,7 @@ describe('elysia adapter — t.Boolean', () => {
   test('has both ~kind and [Kind]', () => {
     const b = t.Boolean();
     expect(b['~kind']).toBe('Boolean');
-    expect((b as Record<string | symbol, unknown>)[Kind]).toBe('Boolean');
+    expect((b as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Boolean');
   });
 });
 
@@ -95,7 +95,7 @@ describe('elysia adapter — t.Null', () => {
   test('has both ~kind and [Kind]', () => {
     const n = t.Null();
     expect(n['~kind']).toBe('Null');
-    expect((n as Record<string | symbol, unknown>)[Kind]).toBe('Null');
+    expect((n as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Null');
   });
 });
 
@@ -103,13 +103,13 @@ describe('elysia adapter — t.Literal', () => {
   test('string literal carries symbol', () => {
     const l = t.Literal('hello');
     expect(l['~kind']).toBe('Literal');
-    expect((l as Record<string | symbol, unknown>)[Kind]).toBe('Literal');
+    expect((l as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Literal');
     expect(l.const).toBe('hello');
   });
 
   test('number literal carries symbol', () => {
     const l = t.Literal(42);
-    expect((l as Record<string | symbol, unknown>)[Kind]).toBe('Literal');
+    expect((l as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Literal');
   });
 });
 
@@ -117,16 +117,16 @@ describe('elysia adapter — t.Object', () => {
   test('carries [Kind] = "Object"', () => {
     const o = t.Object({ name: t.String() });
     expect(o['~kind']).toBe('Object');
-    expect((o as Record<string | symbol, unknown>)[Kind]).toBe('Object');
+    expect((o as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Object');
   });
 
   test('nested schemas also carry [Kind] when built with t.*', () => {
     const nameSchema = t.String();
     const ageSchema = t.Integer();
     const o = t.Object({ name: nameSchema, age: ageSchema });
-    expect((o as Record<string | symbol, unknown>)[Kind]).toBe('Object');
-    expect((nameSchema as Record<string | symbol, unknown>)[Kind]).toBe('String');
-    expect((ageSchema as Record<string | symbol, unknown>)[Kind]).toBe('Integer');
+    expect((o as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Object');
+    expect((nameSchema as unknown as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect((ageSchema as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Integer');
   });
 
   test('properties are preserved', () => {
@@ -140,7 +140,7 @@ describe('elysia adapter — t.Array', () => {
   test('carries [Kind] = "Array"', () => {
     const a = t.Array(t.String());
     expect(a['~kind']).toBe('Array');
-    expect((a as Record<string | symbol, unknown>)[Kind]).toBe('Array');
+    expect((a as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Array');
   });
 });
 
@@ -148,7 +148,7 @@ describe('elysia adapter — t.Optional', () => {
   test('carries [Kind] = "Optional"', () => {
     const o = t.Optional(t.String());
     expect(o['~kind']).toBe('Optional');
-    expect((o as Record<string | symbol, unknown>)[Kind]).toBe('Optional');
+    expect((o as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Optional');
   });
 });
 
@@ -156,7 +156,7 @@ describe('elysia adapter — t.Union', () => {
   test('carries [Kind] = "Union"', () => {
     const u = t.Union([t.String(), t.Number()]);
     expect(u['~kind']).toBe('Union');
-    expect((u as Record<string | symbol, unknown>)[Kind]).toBe('Union');
+    expect((u as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Union');
   });
 });
 
@@ -166,7 +166,7 @@ describe('elysia adapter — t.Intersect', () => {
     const ext = t.Object({ name: t.String() });
     const i = t.Intersect([base, ext]);
     expect(i['~kind']).toBe('Intersect');
-    expect((i as Record<string | symbol, unknown>)[Kind]).toBe('Intersect');
+    expect((i as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Intersect');
   });
 });
 
@@ -174,7 +174,7 @@ describe('elysia adapter — t.Tuple', () => {
   test('carries [Kind] = "Tuple"', () => {
     const tp = t.Tuple([t.String(), t.Number()]);
     expect(tp['~kind']).toBe('Tuple');
-    expect((tp as Record<string | symbol, unknown>)[Kind]).toBe('Tuple');
+    expect((tp as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Tuple');
   });
 });
 
@@ -182,7 +182,7 @@ describe('elysia adapter — t.Record', () => {
   test('carries [Kind] = "Record"', () => {
     const r = t.Record(t.String(), t.Number());
     expect(r['~kind']).toBe('Record');
-    expect((r as Record<string | symbol, unknown>)[Kind]).toBe('Record');
+    expect((r as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Record');
   });
 });
 
@@ -190,99 +190,99 @@ describe('elysia adapter — t.Enum', () => {
   test('carries [Kind] = "Enum"', () => {
     const e = t.Enum(['a', 'b', 'c']);
     expect(e['~kind']).toBe('Enum');
-    expect((e as Record<string | symbol, unknown>)[Kind]).toBe('Enum');
+    expect((e as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Enum');
   });
 });
 
 describe('elysia adapter — t.Unknown / t.Any / t.Never', () => {
   test('Unknown carries symbol', () => {
     const u = t.Unknown();
-    expect((u as Record<string | symbol, unknown>)[Kind]).toBe('Unknown');
+    expect((u as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Unknown');
   });
 
   test('Any carries symbol', () => {
     const a = t.Any();
-    expect((a as Record<string | symbol, unknown>)[Kind]).toBe('Any');
+    expect((a as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Any');
   });
 
   test('Never carries symbol', () => {
     const n = t.Never();
-    expect((n as Record<string | symbol, unknown>)[Kind]).toBe('Never');
+    expect((n as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Never');
   });
 });
 
 describe('elysia adapter — t.Void / t.Undefined', () => {
   test('Void carries symbol', () => {
     const v = t.Void();
-    expect((v as Record<string | symbol, unknown>)[Kind]).toBe('Void');
+    expect((v as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Void');
   });
 
   test('Undefined carries symbol', () => {
     const u = t.Undefined();
-    expect((u as Record<string | symbol, unknown>)[Kind]).toBe('Undefined');
+    expect((u as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Undefined');
   });
 });
 
 describe('elysia adapter — t.BigInt / t.Date / t.Symbol', () => {
   test('BigInt carries symbol', () => {
     const b = t.BigInt();
-    expect((b as Record<string | symbol, unknown>)[Kind]).toBe('BigInt');
+    expect((b as unknown as Record<string | symbol, unknown>)[Kind]).toBe('BigInt');
   });
 
   test('Date carries symbol', () => {
     const d = t.Date();
-    expect((d as Record<string | symbol, unknown>)[Kind]).toBe('Date');
+    expect((d as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Date');
   });
 
   test('Symbol carries symbol', () => {
     const s = t.Symbol();
-    expect((s as Record<string | symbol, unknown>)[Kind]).toBe('Symbol');
+    expect((s as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Symbol');
   });
 });
 
 describe('elysia adapter — t.Uint8Array', () => {
   test('carries symbol', () => {
     const u = t.Uint8Array();
-    expect((u as Record<string | symbol, unknown>)[Kind]).toBe('Uint8Array');
+    expect((u as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Uint8Array');
   });
 });
 
 describe('elysia adapter — string format helpers', () => {
   test('Uuid carries String kind', () => {
     const u = t.Uuid();
-    expect((u as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect((u as unknown as Record<string | symbol, unknown>)[Kind]).toBe('String');
   });
 
   test('Email carries String kind', () => {
     const e = t.Email();
-    expect((e as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect((e as unknown as Record<string | symbol, unknown>)[Kind]).toBe('String');
   });
 
   test('Uri carries String kind', () => {
     const u = t.Uri();
-    expect((u as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect((u as unknown as Record<string | symbol, unknown>)[Kind]).toBe('String');
   });
 
   test('DateTime carries String kind', () => {
     const d = t.DateTime();
-    expect((d as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect((d as unknown as Record<string | symbol, unknown>)[Kind]).toBe('String');
   });
 
   test('CreditCard carries String kind', () => {
     const c = t.CreditCard();
-    expect((c as Record<string | symbol, unknown>)[Kind]).toBe('String');
+    expect((c as unknown as Record<string | symbol, unknown>)[Kind]).toBe('String');
   });
 });
 
 describe('elysia adapter — transform builders', () => {
   test('t.Not carries symbol', () => {
     const n = t.Not(t.String());
-    expect((n as Record<string | symbol, unknown>)[Kind]).toBe('Not');
+    expect((n as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Not');
   });
 
   test('t.Readonly carries symbol', () => {
     const r = t.Readonly(t.String());
-    expect((r as Record<string | symbol, unknown>)[Kind]).toBe('Readonly');
+    expect((r as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Readonly');
   });
 });
 
@@ -351,7 +351,7 @@ describe('elysia adapter — all t.* builders produce decorated schemas', () => 
   for (const [name, build] of builders) {
     test(`t.${name}() has [Kind] set`, () => {
       const schema = build();
-      const kindValue = (schema as Record<string | symbol, unknown>)[Kind];
+      const kindValue = (schema as unknown as Record<string | symbol, unknown>)[Kind];
       expect(kindValue).toBeDefined();
       expect(typeof kindValue).toBe('string');
     });

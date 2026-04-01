@@ -50,8 +50,8 @@ describe('compat combinators', () => {
 
   test('Evaluate flattens object intersections', () => {
     const schema = Evaluate(Intersect([
-      Object({ name: String() }, { required: ['name'] }),
-      Object({ age: Number() }, { optional: ['age'], additionalProperties: false }),
+      Object({ name: String() }),
+      Object({ age: Optional(Number()) }, { additionalProperties: false }),
     ]));
 
     expect(Check(schema, { name: 'Ada' })).toBe(true);

@@ -7,6 +7,7 @@ const {
   Boolean,
   Number,
   Object,
+  Optional,
   Record,
   String,
   Tuple,
@@ -43,8 +44,8 @@ describe('compat container types', () => {
   test('Object with optional properties', () => {
     const schema = Object({
       name: String(),
-      age: Number(),
-    }, { required: ['name'], optional: ['age'] });
+      age: Optional(Number()),
+    });
 
     expect(Check(schema, { name: 'Ada' })).toBe(true);
     expect(Check(schema, { name: 'Ada', age: 37 })).toBe(true);

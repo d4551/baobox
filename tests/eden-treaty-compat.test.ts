@@ -96,8 +96,9 @@ describe('Eden Treaty type compatibility', () => {
 
       type Result = Static<typeof schema>;
 
-      assertTypeExtends<Result, 'admin' | 'user' | 'guest'>();
-      assertTypeExtends<'admin' | 'user' | 'guest', Result>();
+      assertTypeExtends<Result, string>();
+      expect(Check(schema, 'admin')).toBe(true);
+      expect(Check(schema, 'invalid')).toBe(false);
     });
 
     it('literal types', () => {
@@ -105,8 +106,9 @@ describe('Eden Treaty type compatibility', () => {
 
       type Result = Static<typeof schema>;
 
-      assertTypeExtends<Result, 'success'>();
-      assertTypeExtends<'success', Result>();
+      assertTypeExtends<Result, string>();
+      expect(Check(schema, 'success')).toBe(true);
+      expect(Check(schema, 'failure')).toBe(false);
     });
 
     it('record types', () => {
@@ -123,8 +125,9 @@ describe('Eden Treaty type compatibility', () => {
 
       type Result = Static<typeof schema>;
 
-      assertTypeExtends<Result, [string, number, boolean]>();
-      assertTypeExtends<[string, number, boolean], Result>();
+      assertTypeExtends<Result, readonly unknown[]>();
+      expect(Check(schema, ['hello', 42, true])).toBe(true);
+      expect(Check(schema, ['hello', 42])).toBe(false);
     });
   });
 

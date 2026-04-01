@@ -3,6 +3,10 @@ import Baobox, { Check, Clean, TryParse } from '../src/index.ts';
 import TypeBox from 'typebox';
 import TypeBoxValue from 'typebox/value';
 
+function expectSameOutput(baobox: unknown, typebox: unknown): void {
+  expect(JSON.stringify(baobox)).toBe(JSON.stringify(typebox));
+}
+
 describe('AUDIT: edge cases', () => {
   describe('TObject with mixed Optional/OptionalAdd', () => {
     it('handles both TOptional wrapper and ~optional flag', () => {
@@ -34,7 +38,7 @@ describe('AUDIT: edge cases', () => {
         topExtra: 'stripped',
       });
 
-      expect(result).toEqual({ data: { name: 'Ada', extra: true } });
+      expect(JSON.stringify(result)).toBe(JSON.stringify({ data: { name: 'Ada', extra: true } }));
     });
 
     it('outer allows, inner strips', () => {
@@ -48,7 +52,7 @@ describe('AUDIT: edge cases', () => {
         topExtra: 'kept',
       });
 
-      expect(result).toEqual({ data: { name: 'Ada' }, topExtra: 'kept' });
+      expect(JSON.stringify(result)).toBe(JSON.stringify({ data: { name: 'Ada' }, topExtra: 'kept' }));
     });
   });
 
@@ -135,7 +139,7 @@ describe('AUDIT: edge cases', () => {
       const bResult = Clean(bSchema, structuredClone(input));
       const tResult = TypeBoxValue.Clean(tSchema, structuredClone(input));
 
-      expect(bResult).toEqual(tResult);
+      expectSameOutput(bResult, tResult);
     });
   });
 

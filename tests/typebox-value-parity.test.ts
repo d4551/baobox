@@ -3,6 +3,11 @@ import Baobox, { Check, Clean, Convert, Create, Decode, Default, Encode, Errors 
 import TypeBoxValue from 'typebox/value';
 import TypeBox from 'typebox';
 
+/** Compare two unknown values for deep equality without fighting toEqual generics */
+function expectSameOutput(baobox: unknown, typebox: unknown): void {
+  expect(JSON.stringify(baobox)).toBe(JSON.stringify(typebox));
+}
+
 describe('TypeBox value parity', () => {
   describe('Check', () => {
     it('validates simple object with required properties', () => {
@@ -141,7 +146,7 @@ describe('TypeBox value parity', () => {
       const bResult = Clean(bSchema, structuredClone(input));
       const tResult = TypeBoxValue.Clean(tSchema, structuredClone(input));
 
-      expect(bResult).toEqual(tResult);
+      expectSameOutput(bResult, tResult);
     });
   });
 
@@ -153,7 +158,7 @@ describe('TypeBox value parity', () => {
       const bResult = Convert(bSchema, '42');
       const tResult = TypeBoxValue.Convert(tSchema, '42');
 
-      expect(bResult).toEqual(tResult);
+      expectSameOutput(bResult, tResult);
     });
 
     it('coerces string to boolean', () => {
@@ -163,7 +168,7 @@ describe('TypeBox value parity', () => {
       const bResult = Convert(bSchema, 'true');
       const tResult = TypeBoxValue.Convert(tSchema, 'true');
 
-      expect(bResult).toEqual(tResult);
+      expectSameOutput(bResult, tResult);
     });
   });
 
@@ -181,7 +186,7 @@ describe('TypeBox value parity', () => {
       const bResult = Create(bSchema);
       const tResult = TypeBoxValue.Create(tSchema);
 
-      expect(bResult).toEqual(tResult);
+      expectSameOutput(bResult, tResult);
     });
   });
 
@@ -200,7 +205,7 @@ describe('TypeBox value parity', () => {
       const bResult = Default(bSchema, structuredClone(input));
       const tResult = TypeBoxValue.Default(tSchema, structuredClone(input));
 
-      expect(bResult).toEqual(tResult);
+      expectSameOutput(bResult, tResult);
     });
   });
 

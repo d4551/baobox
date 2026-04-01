@@ -59,7 +59,7 @@ describe('compat runtime errors', () => {
   });
 
   test('Optional object fields allow present undefined values', () => {
-    const schema = Object({ name: String(), age: Number() }, { required: ['name'], optional: ['age'] });
+    const schema = Object({ name: String(), age: Optional(Number()) });
     expect(Errors(schema, { name: 'Ada', age: undefined })).toEqual([]);
   });
 
