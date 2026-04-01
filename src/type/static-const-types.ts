@@ -55,6 +55,9 @@ import type {
   TIterator,
   TAsyncIterator,
   TTemplateLiteral,
+  TIndex,
+  TMapped,
+  TConditional,
   UnionToIntersection,
 } from './static-shared-types.js';
 

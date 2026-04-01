@@ -48,6 +48,9 @@ export type {
   TOmit,
   TNot,
   TIfThenElse,
+  TIndex,
+  TMapped,
+  TConditional,
 } from './transform-types.js';
 export type {
   TUint8Array,
