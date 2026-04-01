@@ -1,4 +1,3 @@
-import type { TObject } from '../type/index.js';
 import type { TSchema } from '../type/schema.js';
 import * as T from '../type/index.js';
 import {
@@ -38,13 +37,11 @@ export function parseObjectLiteral(input: string, defs: ScriptDefinitions, parse
     required.push(key);
   }
 
-  const objectOptions = {
-    ...(required.length > 0 ? { required } : {}),
-    ...(optional.length > 0 ? { optional } : {}),
-  } as Partial<Omit<TObject<Record<string, TSchema>, string, string>, "'~kind' | 'properties'">>;
-
   return {
-    schema: T.Object(properties, objectOptions),
+    schema: T.Object(properties, {
+      required,
+      ...(optional.length > 0 ? { optional } : {}),
+    } as never),
     rest: input.slice(body.length + 2).trim(),
   };
 }

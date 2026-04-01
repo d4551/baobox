@@ -178,7 +178,7 @@ describe('compat schema emission', () => {
 
   test('Schema returns schema and definitions object', () => {
     const result = SchemaEmitter(Object({ name: String() }));
-    expect(result.schema).toEqual({ type: 'object', properties: { name: { type: 'string' } } });
+    expect(result.schema).toEqual({ type: 'object', properties: { name: { type: 'string' } }, required: ['name'] });
     expect(result.definitions).toEqual({});
   });
 

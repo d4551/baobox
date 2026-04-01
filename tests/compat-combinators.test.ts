@@ -44,7 +44,7 @@ describe('compat combinators', () => {
     ]);
 
     expect(Check(schema, { name: 'Ada', age: 37 })).toBe(true);
-    expect(Check(schema, { name: 'Ada' })).toBe(true);
+    expect(Check(schema, { name: 'Ada' })).toBe(false); // age is required
     expect(Check(schema, { name: 'Ada', age: '37' })).toBe(false);
   });
 

@@ -33,12 +33,14 @@ function cleanStructuredValue(schema: TSchema, value: unknown, refs: Map<string,
           result[key] = CleanInternal(propertySchema, entryValue, refs);
           continue;
         }
-        if (additionalProperties === false) {
-          continue;
+        // By default, strip extra properties not in schema (TypeBox parity).
+        // Only keep extra properties when additionalProperties is explicitly true or a schema.
+        if (additionalProperties === true) {
+          result[key] = entryValue;
+        } else if (typeof additionalProperties === 'object') {
+          result[key] = CleanInternal(additionalProperties, entryValue, refs);
         }
-        result[key] = typeof additionalProperties === 'object'
-          ? CleanInternal(additionalProperties, entryValue, refs)
-          : entryValue;
+        // When additionalProperties is false or undefined, skip (strip the property)
       }
       return result;
     }

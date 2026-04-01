@@ -5,7 +5,9 @@ import type {
   TRecord,
   TSchema,
 } from './schema.js';
+import type { InferRequiredKeys, InferOptionalKeys } from './containers-types.js';
 import { ExpandTupleRest, type ExpandRestItems } from './actions.js';
+import { schemaKind } from '../shared/schema-access.js';
 
 export function Array<T extends TSchema>(
   item: T,
@@ -18,21 +20,42 @@ export function Array<T extends TSchema>(
   } as TArray<T>;
 }
 
+/** Check if a schema property is optional (via TOptional wrapper or ~optional flag) */
+function isOptionalProperty(schema: TSchema): boolean {
+  return schemaKind(schema) === 'Optional'
+    || (typeof schema === 'object' && schema !== null && (schema as Record<string, unknown>)['~optional'] === true);
+}
+
+/** Compute required and optional key arrays from properties at runtime */
+function computeObjectKeys(properties: Record<string, TSchema>): { required: string[]; optional: string[] } {
+  const required: string[] = [];
+  const optional: string[] = [];
+  for (const [key, value] of globalThis.Object.entries(properties)) {
+    if (isOptionalProperty(value)) {
+      optional.push(key);
+    } else {
+      required.push(key);
+    }
+  }
+  return { required, optional };
+}
+
 export function Object<
   const TProperties extends Record<string, TSchema>,
-  const TRequired extends keyof TProperties = never,
-  const TOptional extends keyof TProperties = never,
 >(
   properties: TProperties,
   options?: Partial<
-    Omit<TObject<TProperties, TRequired, TOptional>, "'~kind' | 'properties'">
+    Omit<TObject<TProperties, InferRequiredKeys<TProperties>, InferOptionalKeys<TProperties>>, "'~kind' | 'properties'">
   >,
-): TObject<TProperties, TRequired, TOptional> {
+): TObject<TProperties, InferRequiredKeys<TProperties>, InferOptionalKeys<TProperties>> {
+  const keys = computeObjectKeys(properties);
   return {
     '~kind': 'Object',
     properties,
+    ...(keys.required.length > 0 ? { required: keys.required } : {}),
+    ...(keys.optional.length > 0 ? { optional: keys.optional } : {}),
     ...options,
-  } as TObject<TProperties, TRequired, TOptional>;
+  } as TObject<TProperties, InferRequiredKeys<TProperties>, InferOptionalKeys<TProperties>>;
 }
 
 export function Tuple<TItems extends TSchema[]>(

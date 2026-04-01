@@ -93,6 +93,10 @@ export type {
   URLLike,
 } from './codec-builtins.js';
 export type {
+  InferOptionalKeys,
+  InferRequiredKeys,
+} from './containers-types.js';
+export type {
   TInstantiate,
   TProperties,
 } from './instantiation.js';

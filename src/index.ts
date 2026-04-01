@@ -31,6 +31,8 @@ export {
   AssertError,
   Diff,
   Errors,
+  ErrorsIterator,
+  ValueErrorType,
   Patch,
   Pipeline,
   Pointer,
@@ -38,6 +40,7 @@ export {
   HasCodec,
 } from './value/index.js';
 export type {
+  ValueError,
   ValueCheckOptions,
   DiffEdit,
   PipelineStage,

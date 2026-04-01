@@ -8,6 +8,7 @@ import { formatBenchmarkReport } from './report.ts';
 import { runBenchmark, type BenchmarkSample } from './runner.ts';
 import TypeBoxValue from 'typebox/value';
 import { Compile as TypeBoxCompile } from 'typebox/compile';
+import TypeBox from 'typebox';
 
 const samples: BenchmarkSample[] = [];
 
@@ -46,5 +47,15 @@ for (const benchmarkCase of codecCases) {
     }),
   );
 }
+
+// Schema creation benchmarks
+samples.push(
+  runBenchmark('schema-creation', 'baobox.object', 100_000, () => {
+    Baobox.Object({ name: Baobox.String(), age: Baobox.Integer() });
+  }),
+  runBenchmark('schema-creation', 'typebox.object', 100_000, () => {
+    TypeBox.Object({ name: TypeBox.String(), age: TypeBox.Integer() });
+  }),
+);
 
 await Bun.write(Bun.stdout, formatBenchmarkReport(samples));

@@ -59,6 +59,16 @@ describe('package contract', () => {
     expect(codecSource.includes('export type TURLCodec = TCodec<TString, URL>;')).toBe(false);
   });
 
+  it('exposes baobox/typebox subpath with Value and Compile re-exports', async () => {
+    const typeboxModule = await import('../src/typebox.ts');
+
+    expect(typeboxModule.Value).toBeDefined();
+    expect(typeboxModule.Compile).toBeDefined();
+    expect(typeboxModule.String).toBeDefined();
+    expect(typeboxModule.Object).toBeDefined();
+    expect(typeboxModule.Script).toBeDefined();
+  });
+
   it('does not require TypeScript as a consumer peer dependency', async () => {
     const pkg = await packageContract();
 

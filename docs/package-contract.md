@@ -36,6 +36,8 @@ These are the supported package imports:
 - `baobox/script`
 - `baobox/locale`
 - `baobox/standard`
+- `baobox/typebox`
+- `baobox/elysia`
 
 ## What Each Entrypoint Is For
 
@@ -43,7 +45,7 @@ These are the supported package imports:
 | --- | --- |
 | `baobox` | Root TypeBox-style builders plus the common value and compile helpers |
 | `baobox/type` | Type builders, transforms, root helpers, and static type exports |
-| `baobox/value` | Runtime value operations such as `Check`, `Parse`, `Errors`, `Repair`, `Diff`, and `Patch` |
+| `baobox/value` | Runtime value operations such as `Check`, `Parse`, `Errors`, `ErrorsIterator`, `Repair`, `Diff`, and `Patch` |
 | `baobox/schema` | Raw schema runtime helpers plus baobox schema emitter helpers |
 | `baobox/error` | Structured validation error surface |
 | `baobox/compile` | `Compile`, `Code`, and `Validator` |
@@ -53,6 +55,8 @@ These are the supported package imports:
 | `baobox/script` | Script DSL helpers |
 | `baobox/locale` | Official per-locale catalog bundles for the declared locale registry |
 | `baobox/standard` | Standard Schema V1 adapter helpers for typed and raw-schema interop |
+| `baobox/typebox` | TypeBox-compatible surface with `Value`, `Compile`, and all type builders |
+| `baobox/elysia` | Elysia adapter with `[Kind]` symbol decoration, `t` namespace, `decorateSchema()` |
 
 ## Supported vs Internal Imports
 

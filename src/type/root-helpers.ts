@@ -4,7 +4,6 @@ import { Composite } from './actions.js';
 import { Any, Literal, Never, Number as TypeNumber, String as TypeString, Symbol as TypeSymbol } from './primitives.js';
 import { Evaluate as EvaluateObject, Intersect, Union } from './combinators.js';
 import {
-  RequiredArray,
   ResultDisjoint,
   ResultEqual,
   ResultLeftInside,
@@ -205,13 +204,7 @@ export function _Function_(parameters: TSchema[], returnType: TSchema, options: 
 }
 
 export function _Object_(properties: Record<string, TSchema>, options: Record<string, unknown> = {}): TObject<Record<string, TSchema>, string, string> {
-  const required = RequiredArray(properties);
-  const optional = Object.keys(properties).filter((key) => !required.includes(key));
-  return TypeObject(properties, {
-    ...options,
-    ...(required.length > 0 ? { required } : {}),
-    ...(optional.length > 0 ? { optional } : {}),
-  } as Partial<Omit<TObject<Record<string, TSchema>, string, string>, "'~kind' | 'properties'">>);
+  return TypeObject(properties, options as never) as TObject<Record<string, TSchema>, string, string>;
 }
 
 export function CallConstruct(target: TSchema, arguments_: TSchema[]): TSchema {

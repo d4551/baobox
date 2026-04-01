@@ -1,5 +1,14 @@
 import type { TSchema } from './base-types.js';
 import type { TString } from './primitives-types.js';
+import type { TOptional as TOptionalSchema } from './composite-types.js';
+
+/** Extract property keys whose schemas are wrapped in TOptional */
+export type InferOptionalKeys<T extends Record<string, TSchema>> = {
+  [K in keyof T]: T[K] extends TOptionalSchema<TSchema> ? K : never;
+}[keyof T] & string;
+
+/** Extract property keys whose schemas are NOT wrapped in TOptional */
+export type InferRequiredKeys<T extends Record<string, TSchema>> = Exclude<keyof T & string, InferOptionalKeys<T>>;
 
 export interface TArray<T extends TSchema = TSchema> extends TSchema {
   '~kind': 'Array';

@@ -55,7 +55,7 @@ const User = Type.Object({
   id: Type.String(),
   email: Type.String({ format: 'email' }),
   age: Type.Number({ minimum: 0 }),
-}, { required: ['id', 'email', 'age'] })
+})
 
 Check(User, { id: 'usr_1', email: 'ada@example.com', age: 37 })
 // true
@@ -89,6 +89,7 @@ StandardUser['~standard'].validate({ id: 'usr_1', email: 'ada@example.com', age:
 | Raw issue metadata plus localized messages | `Explain(schema, value)` | diagnostics array |
 | Reusable hot-path validator | `Compile(schema)` or `CompileCached(schema)` | `Validator` |
 | Reload a prebuilt validator body | `CompileFromArtifact(schema, artifact)` | `Validator` |
+| TypeBox-compatible error iterator | `ErrorsIterator(schema, value)` | `IterableIterator<ValueError>` |
 | Adapt to Standard Schema V1 | `StandardSchemaV1(schema)` | standard-compatible wrapper |
 
 ## Result-First Runtime
@@ -111,7 +112,7 @@ import { CompileCached, CompileFromArtifact, Number, Object } from 'baobox'
 
 const schema = Object({
   count: Number({ minimum: 1 }),
-}, { required: ['count'] })
+})
 
 const validator = CompileCached(schema)
 const artifact = validator.Artifact()
@@ -137,7 +138,7 @@ import { FromJsonSchema, StandardSchemaV1, Type, ToStandardSchema } from 'baobox
 const typed = StandardSchemaV1(Type.Object({
   name: Type.String(),
   age: Type.Number(),
-}, { required: ['name', 'age'] }))
+}))
 
 const raw = FromJsonSchema({
   type: 'object',
@@ -187,6 +188,49 @@ Use runtime contexts when you need:
 - explicit compile-cache boundaries
 - non-global settings and type-policy changes
 
+## Elysia Integration
+
+Baobox ships a dedicated Elysia adapter at `baobox/elysia`. It re-exports all type builders through a `t` namespace that automatically stamps the `[Kind]` symbol property required by Elysia's TypeBox 0.x type guards, alongside the standard `'~kind'` string.
+
+```ts
+import { t } from 'baobox/elysia'
+
+const UserBody = t.Object({
+  name: t.String({ minLength: 1 }),
+  email: t.Email(),
+  role: t.Enum(['admin', 'user']),
+})
+
+// Use with Elysia routes:
+// app.post('/user', handler, { body: UserBody })
+```
+
+The adapter also re-exports `Value`, `Compile`, and `decorateSchema()` for manual decoration of custom schemas. Eden Treaty type inference works because the `t.*` wrappers preserve full generic type parameters.
+
+## TypeBox Migration
+
+The `baobox migrate` CLI rewrites TypeBox imports and API calls to their baobox equivalents.
+
+```bash
+# Preview changes without writing files
+baobox migrate --dry-run --path ./src
+
+# Apply changes
+baobox migrate --write --path ./src
+```
+
+The migration tool:
+- Rewrites `@sinclair/typebox` imports to `baobox` equivalents
+- Rewrites `@sinclair/typebox/value` to `baobox/value`, `/compiler` to `baobox/compile`, etc.
+- Transforms `TypeCompiler.Compile(schema)` to `Compile(schema)`
+- Flags patterns that need manual review (e.g., `[Kind]` symbol usage, `Value.Errors()` iterator differences)
+
+For incremental migration, the `baobox/typebox` subpath provides a TypeBox-compatible surface:
+
+```ts
+import { Value, Compile, Object, String } from 'baobox/typebox'
+```
+
 ## Built-In Codecs
 
 Baobox ships codec helpers for common wire-format boundaries:
@@ -214,6 +258,8 @@ These work with the same value and compile APIs as ordinary schemas.
 | `baobox/script` | Script DSL helpers |
 | `baobox/locale` | Official locale bundles for the declared locale registry |
 | `baobox/standard` | Standard Schema V1 adapter helpers |
+| `baobox/typebox` | TypeBox-compatible re-export surface with `Value` and `Compile` |
+| `baobox/elysia` | Elysia adapter with `[Kind]` symbol decoration and `t` namespace |
 
 Published consumers should only rely on package entrypoints. Direct `src/*` imports are internal to this repository and its tests.
 

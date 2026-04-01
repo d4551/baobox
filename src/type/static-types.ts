@@ -57,16 +57,35 @@ import type {
 export type Static<T extends TSchema, M extends 'static' | 'const' = 'static'> =
   M extends 'const' ? StaticConst<T, never> : StaticValue<T, never>;
 
+/** Detect which keys have TOptional-wrapped schemas */
+type AutoOptionalKeys<T extends Record<string, TSchema>> = {
+  [K in keyof T]: T[K] extends TOptional<TSchema> ? K : never;
+}[keyof T];
+
+type AutoRequiredKeys<T extends Record<string, TSchema>> = Exclude<keyof T, AutoOptionalKeys<T>>;
+
+/**
+ * Static object type inference. When TRequired is `never` (default/unset),
+ * auto-detects required vs optional by checking which properties are
+ * wrapped in TOptional. This matches TypeBox's behavior where all
+ * properties are required unless explicitly wrapped in Optional().
+ */
 type StaticObject<
   T extends Record<string, TSchema>,
-  TRequired extends keyof T,
-  TOptional extends keyof T,
+  TReq extends keyof T,
+  TOpt extends keyof T,
   Stack extends TSchema[],
-> = {
-  [K in Exclude<TRequired, TOptional>]-?: T[K] extends TSchema ? StaticValue<T[K], Stack> : never;
-} & {
-  [K in Exclude<keyof T, Exclude<TRequired, TOptional>>]?: T[K] extends TSchema ? StaticValue<T[K], Stack> | undefined : never;
-};
+> = [TReq] extends [never]
+  ? {
+      [K in AutoRequiredKeys<T>]-?: T[K] extends TSchema ? StaticValue<T[K], Stack> : never;
+    } & {
+      [K in AutoOptionalKeys<T>]?: T[K] extends TOptional<infer Inner> ? StaticValue<Inner, Stack> | undefined : never;
+    }
+  : {
+      [K in Exclude<TReq, TOpt>]-?: T[K] extends TSchema ? StaticValue<T[K], Stack> : never;
+    } & {
+      [K in Exclude<keyof T, Exclude<TReq, TOpt>>]?: T[K] extends TSchema ? StaticValue<T[K], Stack> | undefined : never;
+    };
 
 type StaticIntersect<T extends TSchema[], Stack extends TSchema[]> =
   UnionToIntersection<{ [K in keyof T]: StaticValue<T[K], Stack> }[number]>;
@@ -89,6 +108,20 @@ type StaticPartial<T extends Record<string, TSchema>, Stack extends TSchema[]> =
 type StaticRequired<T extends Record<string, TSchema>, Stack extends TSchema[]> = {
   [K in keyof T]-?: StaticValue<T[K], Stack>;
 };
+
+/** Infer the key type for TRecord — resolves literal, enum, and union key schemas */
+type StaticRecordKey<K extends TSchema, Stack extends TSchema[]> =
+  K extends TLiteral<infer V>
+    ? V extends string ? V : string
+    : K extends TEnum<infer V>
+      ? V[number]
+      : K extends TUnion<infer V>
+        ? { [I in keyof V]: V[I] extends TLiteral<infer L> ? L extends string ? L : never : never }[number] extends infer R
+          ? [R] extends [never] ? string : R
+          : string
+        : K extends TString
+          ? string
+          : string;
 
 type StaticValue<T, Stack extends TSchema[]> = T extends TString
   ? string
@@ -122,8 +155,8 @@ type StaticValue<T, Stack extends TSchema[]> = T extends TString
                               ? StaticTuple<ExpandTupleRest<I>, Stack>
                               : T extends TObject<infer P, infer R, infer O>
                                 ? StaticObject<P, Extract<R, keyof P>, Extract<O, keyof P>, Stack>
-                                : T extends TRecord<infer _K, infer V>
-                                  ? Record<string, StaticValue<V, Stack>>
+                                : T extends TRecord<infer K, infer V>
+                                  ? Record<StaticRecordKey<K, Stack>, StaticValue<V, Stack>>
                                   : T extends TUnion<infer V>
                                     ? StaticValue<V[number], Stack>
                                     : T extends TIntersect<infer V>
