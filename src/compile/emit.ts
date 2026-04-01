@@ -19,11 +19,9 @@ import {
   schemaItem,
   schemaKind,
   schemaOptionalKeys,
-  schemaPatternProperties,
   schemaSchemaField,
   schemaSchemaListField,
 } from '../shared/schema-access.js';
-import { getPatternPropertySchemas } from '../shared/utils.js';
 
 export type EmitSchema = (schema: TSchema, valueExpr: string) => string;
 
@@ -144,7 +142,6 @@ function emitObjectCheck(schema: TObject, valueExpr: string, emitSchema: EmitSch
   const required = schema.required ?? Object.keys(schema.properties);
   const optional = new Set((schema.optional ?? []).map(String));
   const additionalProperties = schemaBooleanOrSchemaField(schema as TSchema, 'additionalProperties');
-  const patternProperties = schemaPatternProperties(schema as TSchema);
   const optionalKeys = new Set(schemaOptionalKeys(schema as TSchema));
   const definedKeys = new Set(Object.keys(schema.properties));
 

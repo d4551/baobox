@@ -79,9 +79,7 @@ export function decorateSchema<T extends TSchema>(schema: T): T {
 
   // Record key/value
   if (s.key && typeof s.key === 'object') decorateSchema(s.key as TSchema);
-  if (s.value && typeof s.value === 'object' && '~kind' in (s.value as TSchema)) {
-    decorateSchema(s.value as TSchema);
-  }
+  if (s.value && typeof s.value === 'object') decorateSchema(s.value as TSchema);
 
   // Schema wrappers (Decode, Encode, Not, etc.)
   if (s.inner && typeof s.inner === 'object') decorateSchema(s.inner as TSchema);
