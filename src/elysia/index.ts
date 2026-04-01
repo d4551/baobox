@@ -33,19 +33,14 @@ import * as Type from '../type/index.js';
  * the schema tree carries the symbol.
  *
  * The mutation is applied in-place and the same reference is returned.
- * A WeakSet guard prevents infinite loops on recursive schemas.
+ * Each top-level call uses a fresh WeakSet so shared nodes can be re-decorated
+ * in later invocations while still breaking cycles within one walk.
  */
-const _decorated = new WeakSet<object>();
-
-export function decorateSchema<T extends TSchema>(schema: T): T {
-  if (
-    typeof schema !== 'object' ||
-    schema === null ||
-    _decorated.has(schema)
-  ) {
+function decorateSchemaRecursive<T extends TSchema>(schema: T, visited: WeakSet<object>): T {
+  if (typeof schema !== 'object' || schema === null || visited.has(schema)) {
     return schema;
   }
-  _decorated.add(schema);
+  visited.add(schema);
 
   // Stamp [Kind] from ~kind
   if ('~kind' in schema && schema['~kind'] !== undefined) {
@@ -58,42 +53,46 @@ export function decorateSchema<T extends TSchema>(schema: T): T {
   if (s.properties && typeof s.properties === 'object') {
     for (const key of globalThis.Object.keys(s.properties as Record<string, unknown>)) {
       const prop = (s.properties as Record<string, TSchema>)[key];
-      if (prop && typeof prop === 'object') decorateSchema(prop);
+      if (prop && typeof prop === 'object') decorateSchemaRecursive(prop, visited);
     }
   }
 
   // Array items / Optional+Readonly item
   if (s.items && typeof s.items === 'object') {
     if (globalThis.Array.isArray(s.items)) {
-      for (const item of s.items as TSchema[]) decorateSchema(item);
+      for (const item of s.items as TSchema[]) decorateSchemaRecursive(item, visited);
     } else {
-      decorateSchema(s.items as TSchema);
+      decorateSchemaRecursive(s.items as TSchema, visited);
     }
   }
-  if (s.item && typeof s.item === 'object') decorateSchema(s.item as TSchema);
+  if (s.item && typeof s.item === 'object') decorateSchemaRecursive(s.item as TSchema, visited);
 
   // Union/Intersect variants
   if (globalThis.Array.isArray(s.variants)) {
-    for (const v of s.variants as TSchema[]) decorateSchema(v);
+    for (const v of s.variants as TSchema[]) decorateSchemaRecursive(v, visited);
   }
 
   // Record key/value (both hold nested TSchema like other branches — avoid '~kind' asymmetry)
-  if (s.key && typeof s.key === 'object') decorateSchema(s.key as TSchema);
-  if (s.value && typeof s.value === 'object') decorateSchema(s.value as TSchema);
+  if (s.key && typeof s.key === 'object') decorateSchemaRecursive(s.key as TSchema, visited);
+  if (s.value && typeof s.value === 'object') decorateSchemaRecursive(s.value as TSchema, visited);
 
   // Schema wrappers (Decode, Encode, Not, etc.)
-  if (s.inner && typeof s.inner === 'object') decorateSchema(s.inner as TSchema);
-  if (s.schema && typeof s.schema === 'object') decorateSchema(s.schema as TSchema);
+  if (s.inner && typeof s.inner === 'object') decorateSchemaRecursive(s.inner as TSchema, visited);
+  if (s.schema && typeof s.schema === 'object') decorateSchemaRecursive(s.schema as TSchema, visited);
 
   // Transform types (Partial, Required, Pick, Omit, KeyOf, Index, Mapped)
-  if (s.object && typeof s.object === 'object') decorateSchema(s.object as TSchema);
+  if (s.object && typeof s.object === 'object') decorateSchemaRecursive(s.object as TSchema, visited);
 
   // IfThenElse
-  if (s.if && typeof s.if === 'object') decorateSchema(s.if as TSchema);
-  if (s.then && typeof s.then === 'object') decorateSchema(s.then as TSchema);
-  if (s.else && typeof s.else === 'object') decorateSchema(s.else as TSchema);
+  if (s.if && typeof s.if === 'object') decorateSchemaRecursive(s.if as TSchema, visited);
+  if (s.then && typeof s.then === 'object') decorateSchemaRecursive(s.then as TSchema, visited);
+  if (s.else && typeof s.else === 'object') decorateSchemaRecursive(s.else as TSchema, visited);
 
   return schema;
+}
+
+export function decorateSchema<T extends TSchema>(schema: T): T {
+  return decorateSchemaRecursive(schema, new WeakSet());
 }
 
 /**
