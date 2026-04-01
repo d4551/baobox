@@ -64,17 +64,27 @@ function emitRecordCheck(schema: TSchema, valueExpr: string, emitSchema: EmitSch
   const keySchema = schemaSchemaField(schema, 'key');
   const valueSchema = schemaSchemaField(schema, 'value');
   if (!keySchema || !valueSchema) return `__check(${valueExpr})`;
+  const record = schema as Record<string, unknown>;
+  const minProperties = typeof record.minProperties === 'number' ? record.minProperties : undefined;
+  const maxProperties = typeof record.maxProperties === 'number' ? record.maxProperties : undefined;
   const entryVar = nextVar();
   const keyExpr = `${entryVar}[0]`;
   const valExpr = `${entryVar}[1]`;
   const keyCheck = emitSchema(keySchema, keyExpr);
   const valCheck = emitSchema(valueSchema, valExpr);
-  return [
+  const checks: string[] = [
     `typeof ${valueExpr} === 'object'`,
     `${valueExpr} !== null`,
     `!Array.isArray(${valueExpr})`,
-    `Object.entries(${valueExpr}).every(${entryVar} => ${keyCheck} && ${valCheck})`,
-  ].join(' && ');
+  ];
+  if (minProperties !== undefined) {
+    checks.push(`Object.keys(${valueExpr}).length >= ${minProperties}`);
+  }
+  if (maxProperties !== undefined) {
+    checks.push(`Object.keys(${valueExpr}).length <= ${maxProperties}`);
+  }
+  checks.push(`Object.entries(${valueExpr}).every(${entryVar} => ${keyCheck} && ${valCheck})`);
+  return checks.join(' && ');
 }
 
 function emitObjectCheck(schema: TObject, valueExpr: string, emitSchema: EmitSchema): string {
