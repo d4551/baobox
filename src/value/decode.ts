@@ -143,6 +143,18 @@ function DecodeInternal(
       return decodeArrayItems(schemaSchemaField(schema, 'items'), value, refs, checkContext);
     case 'Tuple':
       return decodeTupleItems(schema, value, refs, checkContext);
+    case 'Record': {
+      if (!isPlainRecord(value)) return value;
+      const valueSchema = schemaSchemaField(schema, 'value');
+      if (valueSchema === undefined) {
+        return value;
+      }
+      const result: Record<string, unknown> = {};
+      for (const [key, entryValue] of recordEntries(value)) {
+        result[key] = DecodeInternal(valueSchema, entryValue, refs, checkContext);
+      }
+      return result;
+    }
     case 'Union': {
       const variants = schemaSchemaListField(schema, 'variants');
       for (const variant of variants) {
