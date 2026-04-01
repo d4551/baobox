@@ -17,18 +17,18 @@ function collectArrayIssues(
   const currentPath = schemaPath(path);
 
   if (!Array.isArray(value)) {
-    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'array' }));
+    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'array' }, schema));
     return issues;
   }
 
   if (schema.minItems !== undefined && value.length < schema.minItems) {
-    issues.push(createSchemaIssue(currentPath, 'MIN_ITEMS', { minimum: schema.minItems }));
+    issues.push(createSchemaIssue(currentPath, 'MIN_ITEMS', { minimum: schema.minItems }, schema));
   }
   if (schema.maxItems !== undefined && value.length > schema.maxItems) {
-    issues.push(createSchemaIssue(currentPath, 'MAX_ITEMS', { maximum: schema.maxItems }));
+    issues.push(createSchemaIssue(currentPath, 'MAX_ITEMS', { maximum: schema.maxItems }, schema));
   }
   if (schema.uniqueItems && new Set(value).size !== value.length) {
-    issues.push(createSchemaIssue(currentPath, 'UNIQUE_ITEMS'));
+    issues.push(createSchemaIssue(currentPath, 'UNIQUE_ITEMS', {}, schema));
   }
   if (schema.contains !== undefined) {
     let containsCount = 0;
@@ -38,13 +38,13 @@ function collectArrayIssues(
       }
     });
     if (containsCount === 0) {
-      issues.push(createSchemaIssue(currentPath, 'CONTAINS'));
+      issues.push(createSchemaIssue(currentPath, 'CONTAINS', {}, schema));
     }
     if (schema.minContains !== undefined && containsCount < schema.minContains) {
-      issues.push(createSchemaIssue(currentPath, 'MIN_CONTAINS', { minimum: schema.minContains }));
+      issues.push(createSchemaIssue(currentPath, 'MIN_CONTAINS', { minimum: schema.minContains }, schema));
     }
     if (schema.maxContains !== undefined && containsCount > schema.maxContains) {
-      issues.push(createSchemaIssue(currentPath, 'MAX_CONTAINS', { maximum: schema.maxContains }));
+      issues.push(createSchemaIssue(currentPath, 'MAX_CONTAINS', { maximum: schema.maxContains }, schema));
     }
   }
 
@@ -66,7 +66,7 @@ function collectObjectIssues(
   const currentPath = schemaPath(path);
 
   if (!isPlainRecord(value)) {
-    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'object' }));
+    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'object' }, schema));
     return issues;
   }
 
@@ -76,7 +76,7 @@ function collectObjectIssues(
 
   for (const key of required) {
     if (!(key in objectValue)) {
-      issues.push(createSchemaIssue(schemaPath(appendPath(path, String(key))), 'MISSING_REQUIRED', { property: String(key) }));
+      issues.push(createSchemaIssue(schemaPath(appendPath(path, String(key))), 'MISSING_REQUIRED', { property: String(key) }, schema));
     }
   }
 
@@ -94,7 +94,7 @@ function collectObjectIssues(
         issues.push(...collectSchemaIssues(patternSchema, entryValue, entryPath, refs));
       }
     } else if (schema.properties[key] === undefined && schema.additionalProperties === false) {
-      issues.push(createSchemaIssue(schemaPath(entryPath), 'ADDITIONAL_PROPERTY', { property: key }));
+      issues.push(createSchemaIssue(schemaPath(entryPath), 'ADDITIONAL_PROPERTY', { property: key }, schema));
     } else if (schema.properties[key] === undefined && typeof schema.additionalProperties === 'object') {
       issues.push(...collectSchemaIssues(schema.additionalProperties, entryValue, entryPath, refs));
     }
@@ -114,15 +114,15 @@ function collectTupleIssues(
   const currentPath = schemaPath(path);
 
   if (!Array.isArray(value)) {
-    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'array' }));
+    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'array' }, schema));
     return issues;
   }
 
   if (schema.minItems !== undefined && value.length < schema.minItems) {
-    issues.push(createSchemaIssue(currentPath, 'MIN_ITEMS', { label: 'Tuple', minimum: schema.minItems }));
+    issues.push(createSchemaIssue(currentPath, 'MIN_ITEMS', { label: 'Tuple', minimum: schema.minItems }, schema));
   }
   if (schema.maxItems !== undefined && value.length > schema.maxItems) {
-    issues.push(createSchemaIssue(currentPath, 'MAX_ITEMS', { label: 'Tuple', maximum: schema.maxItems }));
+    issues.push(createSchemaIssue(currentPath, 'MAX_ITEMS', { label: 'Tuple', maximum: schema.maxItems }, schema));
   }
 
   value.forEach((item, index) => {
@@ -130,7 +130,7 @@ function collectTupleIssues(
     if (itemSchema !== undefined) {
       issues.push(...collectSchemaIssues(itemSchema, item, appendPath(path, String(index)), refs));
     } else if (!schema.additionalItems) {
-      issues.push(createSchemaIssue(schemaPath(appendPath(path, String(index))), 'ADDITIONAL_ITEMS', { count: index }));
+      issues.push(createSchemaIssue(schemaPath(appendPath(path, String(index))), 'ADDITIONAL_ITEMS', { count: index }, schema));
     }
   });
 
@@ -148,21 +148,21 @@ function collectRecordIssues(
   const currentPath = schemaPath(path);
 
   if (!isPlainRecord(value)) {
-    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'object' }));
+    issues.push(createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'object' }, schema));
     return issues;
   }
 
   const entries = recordEntries(value);
   if (schema.minProperties !== undefined && entries.length < schema.minProperties) {
-    issues.push(createSchemaIssue(currentPath, 'MIN_PROPERTIES', { minimum: schema.minProperties }));
+    issues.push(createSchemaIssue(currentPath, 'MIN_PROPERTIES', { minimum: schema.minProperties }, schema));
   }
   if (schema.maxProperties !== undefined && entries.length > schema.maxProperties) {
-    issues.push(createSchemaIssue(currentPath, 'MAX_PROPERTIES', { maximum: schema.maxProperties }));
+    issues.push(createSchemaIssue(currentPath, 'MAX_PROPERTIES', { maximum: schema.maxProperties }, schema));
   }
 
   entries.forEach(([key, entryValue]) => {
     if (!CheckInternal(schema.key, key, refs)) {
-      issues.push(createSchemaIssue(schemaPath(appendPath(path, key)), 'INVALID_KEY', { key }));
+      issues.push(createSchemaIssue(schemaPath(appendPath(path, key)), 'INVALID_KEY', { key }, schema));
     }
     issues.push(...collectSchemaIssues(schema.value, entryValue, appendPath(path, key), refs));
   });

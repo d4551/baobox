@@ -23,14 +23,91 @@ const API_TRANSFORMS: ApiTransform[] = [
     replacement: 'Code(',
     note: 'TypeCompiler.Code → Code (add import from baobox/compile)',
   },
+  {
+    pattern: /Value\.Check\(/g,
+    replacement: 'Check(',
+    note: 'Value.Check → Check (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Clean\(/g,
+    replacement: 'Clean(',
+    note: 'Value.Clean → Clean (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Convert\(/g,
+    replacement: 'Convert(',
+    note: 'Value.Convert → Convert (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Create\(/g,
+    replacement: 'Create(',
+    note: 'Value.Create → Create (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Default\(/g,
+    replacement: 'Default(',
+    note: 'Value.Default → Default (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Decode\(/g,
+    replacement: 'Decode(',
+    note: 'Value.Decode → Decode (add import from baobox/value)',
+  },
+  {
+    pattern: /Value\.Encode\(/g,
+    replacement: 'Encode(',
+    note: 'Value.Encode → Encode (add import from baobox/value)',
+  },
+  {
+    pattern: /Value\.Parse\(/g,
+    replacement: 'Parse(',
+    note: 'Value.Parse → Parse (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Assert\(/g,
+    replacement: 'Assert(',
+    note: 'Value.Assert → Assert (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Diff\(/g,
+    replacement: 'Diff(',
+    note: 'Value.Diff → Diff (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Patch\(/g,
+    replacement: 'Patch(',
+    note: 'Value.Patch → Patch (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Hash\(/g,
+    replacement: 'Hash(',
+    note: 'Value.Hash → Hash (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Equal\(/g,
+    replacement: 'Equal(',
+    note: 'Value.Equal → Equal (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Clone\(/g,
+    replacement: 'Clone(',
+    note: 'Value.Clone → Clone (add import from baobox or baobox/value)',
+  },
+  {
+    pattern: /Value\.Repair\(/g,
+    replacement: 'Repair(',
+    note: 'Value.Repair → Repair (add import from baobox or baobox/value)',
+  },
 ];
 
 const MANUAL_REVIEW_PATTERNS = [
-  { pattern: /\[Kind\]/, message: 'Uses [Kind] symbol — baobox uses \'~kind\' string property instead' },
+  { pattern: /\[Kind\]/, message: 'Uses [Kind] symbol — baobox uses \'~kind\' string property instead. Use baobox/elysia for Elysia compatibility' },
   { pattern: /\[Hint\]/, message: 'Uses [Hint] symbol — baobox does not use Hint symbols' },
   { pattern: /Value\.Errors\(/, message: 'Value.Errors() returns SchemaError[] in baobox (not an iterator). Use ErrorsIterator() for TypeBox-compatible iterator format' },
   { pattern: /FormatRegistry\.Set/, message: 'Format registry is scoped to RuntimeContext in baobox — use CreateRuntimeContext() instead of global registry' },
   { pattern: /TypeRegistry\.Set/, message: 'Type registry is scoped to RuntimeContext in baobox' },
+  { pattern: /TypeSystemPolicy/, message: 'TypeSystemPolicy is configured via RuntimeContext in baobox — use CreateRuntimeContext() with TypeSystemPolicy options' },
+  { pattern: /Value\.Mutate\(/, message: 'Value.Mutate() exists in baobox but may have different semantics — verify behavior' },
 ];
 
 /** Heuristic: skip transforms on comment lines and lines where the match is likely inside a string */

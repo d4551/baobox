@@ -1,3 +1,5 @@
+import type { TSchema } from '../type/schema.js';
+
 export type SchemaIssueCode =
   | 'INVALID_TYPE'
   | 'MIN_LENGTH'
@@ -62,6 +64,8 @@ export interface SchemaIssue {
   path: string;
   code: SchemaIssueCode;
   params?: SchemaIssueParams;
+  /** Schema node that emitted this issue (for diagnostics parity with TypeBox) */
+  schema?: TSchema;
 }
 
 export type SchemaIssueCatalog = Record<SchemaIssueCode, (params: SchemaIssueParams) => string>;

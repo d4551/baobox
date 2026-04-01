@@ -141,6 +141,19 @@ describe('Value.Encode', () => {
     const result = Encode(schema, 'HELLO');
     expect(result).toBe('hello');
   });
+
+  it('dispatches Union of Codec variants using decoded value shape', () => {
+    const numCodec = B.Codec(B.String())
+      .Decode((s) => globalThis.Number(s))
+      .Encode((n) => globalThis.String(n));
+    const boolCodec = B.Codec(B.String())
+      .Decode((s) => s === 'true')
+      .Encode((b) => (b ? 'true' : 'false'));
+    const schema = B.Union([numCodec, boolCodec]);
+
+    expect(Encode(schema, 7)).toBe('7');
+    expect(Encode(schema, false)).toBe('false');
+  });
 });
 
 describe('Decode/Encode schema validation', () => {

@@ -56,6 +56,16 @@ function defaultStructuredValue(schema: TSchema, value: unknown, refs: Map<strin
         return itemSchema ? DefaultInternal(itemSchema, item, refs) : item;
       });
     }
+    case 'Record': {
+      if (!isPlainRecord(value)) return value;
+      const valueSchema = schemaSchemaField(schema, 'value');
+      if (!valueSchema) return value;
+      const result = cloneRecord(value);
+      for (const [key, entryValue] of Object.entries(result)) {
+        result[key] = DefaultInternal(valueSchema, entryValue, refs);
+      }
+      return result;
+    }
     default:
       return NOT_HANDLED;
   }
@@ -69,7 +79,9 @@ function defaultCompositeValue(schema: TSchema, value: unknown, refs: Map<string
         ? value
         : DefaultInternal(itemSchema, value, refs);
     }
-    case 'Readonly': {
+    case 'Readonly':
+    case 'Immutable':
+    case 'Refine': {
       const itemSchema = schemaItem(schema);
       return itemSchema ? DefaultInternal(itemSchema, value, refs) : value;
     }

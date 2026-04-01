@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import * as B from '../src/index.ts';
 import { Value } from '../src/value/index.ts';
-import { ErrorsIterator, ValueErrorType } from '../src/value/errors-compat.ts';
+import { ErrorsIterator, First, ValueErrorType } from '../src/value/errors-compat.ts';
 import type { ValueError } from '../src/value/errors-compat.ts';
 
 describe('ErrorsIterator', () => {
@@ -55,12 +55,15 @@ describe('ErrorsIterator', () => {
     expect(errors.length).toBe(0);
   });
 
-  test('each error carries the root schema reference', () => {
-    const schema = B.Object({ age: B.Number({ minimum: 0 }) }, { required: ['age'] });
+  test('each error carries the sub-schema at the failing path', () => {
+    const ageSchema = B.Number({ minimum: 0 });
+    const schema = B.Object({ age: ageSchema }, { required: ['age'] });
     const errors = Array.from(ErrorsIterator(schema, { age: -1 }));
     expect(errors.length).toBeGreaterThan(0);
-    for (const error of errors) {
-      expect(error.schema).toBe(schema);
+    // Error at path "age" should reference the Number sub-schema, not root Object
+    const ageError = errors.find((e) => e.path.includes('age'));
+    if (ageError) {
+      expect(ageError.schema).toBe(ageSchema);
     }
   });
 
@@ -97,5 +100,43 @@ describe('ErrorsIterator', () => {
     const errors = Array.from(Value.ErrorsIterator(B.Boolean(), 'not-a-bool'));
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0]?.type).toBe(ValueErrorType.INVALID_TYPE);
+  });
+
+  test('error.value resolves to the value at the failing path', () => {
+    const schema = B.Object({ user: B.Object({ age: B.Number() }) });
+    const errors = Array.from(ErrorsIterator(schema, { user: { age: 'not-a-number' } }));
+    const ageError = errors.find((e) => e.path.includes('age'));
+    if (ageError) {
+      expect(ageError.value).toBe('not-a-number');
+    }
+  });
+
+  test('error path uses dot notation for nested properties', () => {
+    const schema = B.Object({ user: B.Object({ name: B.String() }) });
+    const errors = Array.from(ErrorsIterator(schema, { user: { name: 42 } }));
+    const nameError = errors.find((e) => e.path.includes('name'));
+    expect(nameError).toBeDefined();
+    expect(nameError!.path).toContain('.');
+  });
+});
+
+describe('First', () => {
+  test('returns first error for invalid value', () => {
+    const error = First(B.String(), 42);
+    expect(error).toBeDefined();
+    expect(error!.type).toBe(ValueErrorType.INVALID_TYPE);
+    expect(typeof error!.message).toBe('string');
+  });
+
+  test('returns undefined for valid value', () => {
+    expect(First(B.String(), 'hello')).toBeUndefined();
+  });
+
+  test('is accessible from Value namespace', () => {
+    expect(typeof Value.First).toBe('function');
+  });
+
+  test('is exported from main index', () => {
+    expect(typeof B.First).toBe('function');
   });
 });

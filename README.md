@@ -120,6 +120,10 @@ Clean(Object({ name: String() }), { name: 'Ada', extra: true })
 | Reusable hot-path validator | `Compile(schema)` or `CompileCached(schema)` | `Validator` |
 | Reload a prebuilt validator body | `CompileFromArtifact(schema, artifact)` | `Validator` |
 | TypeBox-compatible error iterator | `ErrorsIterator(schema, value)` | `IterableIterator<ValueError>` |
+| First validation error or undefined | `First(schema, value)` | `ValueError \| undefined` |
+| Extract inferred TypeScript type | `Static<T>` | TypeScript type |
+| Extract decoded type from codec | `StaticDecode<T>` | TypeScript type |
+| Extract encoded type from codec | `StaticEncode<T>` | TypeScript type |
 | Adapt to Standard Schema V1 | `StandardSchemaV1(schema)` | standard-compatible wrapper |
 
 ## Result-First Runtime
@@ -250,10 +254,11 @@ baobox migrate --write --path ./src
 ```
 
 The migration tool:
-- Rewrites `@sinclair/typebox` imports to `baobox` equivalents
-- Rewrites `@sinclair/typebox/value` to `baobox/value`, `/compiler` to `baobox/compile`, etc.
-- Transforms `TypeCompiler.Compile(schema)` to `Compile(schema)`
-- Flags patterns that need manual review (e.g., `[Kind]` symbol usage, `Value.Errors()` iterator differences)
+- Rewrites `@sinclair/typebox` imports to `baobox` equivalents (including `/value`, `/compiler`, `/system`, `/format`, `/guard`)
+- Transforms `TypeCompiler.Compile()` to `Compile()` and `TypeCompiler.Code()` to `Code()`
+- Transforms all `Value.*` calls: `Value.Check`, `Value.Clean`, `Value.Convert`, `Value.Create`, `Value.Default`, `Value.Decode`, `Value.Encode`, `Value.Parse`, `Value.Assert`, `Value.Diff`, `Value.Patch`, `Value.Hash`, `Value.Equal`, `Value.Clone`, `Value.Repair`
+- Flags patterns that need manual review: `[Kind]` symbol usage, `Value.Errors()` iterator differences, `TypeSystemPolicy`, `FormatRegistry.Set`, `TypeRegistry.Set`
+- Use `--include-js` to also scan `.js`, `.jsx`, `.mjs`, and `.cjs` files
 
 For incremental migration, the `baobox/typebox` subpath provides a TypeBox-compatible surface:
 
@@ -272,13 +277,85 @@ Baobox ships codec helpers for common wire-format boundaries:
 
 These work with the same value and compile APIs as ordinary schemas.
 
+## Static Type Inference
+
+Extract TypeScript types from schemas at compile time:
+
+```ts
+import Type, { type Static, type StaticDecode, type StaticEncode } from 'baobox'
+
+const User = Type.Object({
+  name: Type.String(),
+  age: Type.Optional(Type.Integer()),
+})
+
+type User = Static<typeof User>
+// { name: string; age?: number | undefined }
+```
+
+`StaticDecode<T>` and `StaticEncode<T>` extract the decoded/encoded types for schemas with codecs:
+
+```ts
+const Schema = Type.Codec(Type.String())
+  .Decode((v: string) => parseInt(v, 10))
+  .Encode((v: number) => String(v))
+
+type Decoded = StaticDecode<typeof Schema> // number
+type Encoded = StaticEncode<typeof Schema> // string
+```
+
+Supported types include `TFunction`, `TConstructor`, `TPromise`, `TIterator`, `TAsyncIterator`, `TTemplateLiteral`, and all standard schema kinds.
+
+## Immutable and Refine Wrappers
+
+`Immutable()` marks a schema as deeply readonly at the type level. `Refine()` adds custom validation predicates:
+
+```ts
+import Type, { Check } from 'baobox'
+
+const Config = Type.Immutable(Type.Object({
+  port: Type.Integer({ minimum: 1, maximum: 65535 }),
+  host: Type.String(),
+}))
+
+const PositiveNumber = Type.Refine(
+  Type.Number(),
+  (value) => (value as number) > 0,
+  'Must be positive',
+)
+
+Check(PositiveNumber, 5)   // true
+Check(PositiveNumber, -1)  // false
+```
+
+Both wrappers are supported across all value operations: `Check`, `Clean`, `Convert`, `Create`, `Default`, `Decode`, `Encode`, and `Repair`.
+
+## Codec Builder Pattern
+
+Build type-safe encode/decode transforms with the chainable Codec builder:
+
+```ts
+import Type from 'baobox'
+import { Decode, Encode } from 'baobox/value'
+
+const DateString = Type.Codec(Type.String())
+  .Decode((v: string) => new Date(v))
+  .Encode((v: Date) => v.toISOString())
+
+Decode(DateString, '2024-01-01T00:00:00Z')
+// Date('2024-01-01T00:00:00Z')
+
+Encode(DateString, new Date('2024-01-01'))
+// '2024-01-01T00:00:00.000Z'
+```
+
 ## Public Entrypoints
 
 | Entrypoint | Purpose |
 | --- | --- |
 | `baobox` | Root builders, value helpers, compile helpers, and baobox additions |
 | `baobox/type` | Type builders and static type exports |
-| `baobox/value` | Runtime value operations such as `Check`, `Parse`, `Errors`, `Repair`, `Diff`, and `Patch` |
+| `baobox/value` | Runtime value operations: `Check`, `Parse`, `TryParse`, `Clean`, `Convert`, `Create`, `Default`, `Decode`, `Encode`, `Assert`, `Errors`, `ErrorsIterator`, `First`, `Repair`, `Diff`, `Patch`, `Clone`, `Equal`, `Hash`, `Mutate`, `Pointer`, `Pipeline`, `HasCodec` |
 | `baobox/schema` | Raw schema runtime plus baobox schema-emitter helpers |
 | `baobox/error` | Structured validation error surface |
 | `baobox/compile` | `Compile`, `Code`, and `Validator` |

@@ -247,3 +247,17 @@ export * from './root-instantiate.js';
 export { RecordPattern as RecordKeyAsPattern } from './root-template.js';
 export { Uint8ArrayCodec } from './uint8array-codec.js';
 export { BigIntCodec, DateCodec, URLCodec } from './codec-builtins.js';
+
+export type {
+  TSchemaOptions,
+  TObjectOptions,
+  TArrayOptions,
+  TTupleOptions,
+  TIntersectOptions,
+  TNumberOptions,
+  TStringOptions,
+  TLiteralValue,
+  TEnumValue,
+  TFormat,
+} from './typebox-compat.js';
+export type { TProperties as TPropertiesRecord } from './typebox-compat.js';

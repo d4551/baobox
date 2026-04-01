@@ -24,6 +24,18 @@ describe('import transforms', () => {
     expect(result.line).toBe("import { TypeCompiler } from 'baobox/compile';");
   });
 
+  it('rewrites @sinclair/typebox/system to baobox/system', () => {
+    const result = transformImport("import { TypeSystemPolicy } from '@sinclair/typebox/system';");
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe("import { TypeSystemPolicy } from 'baobox/system';");
+  });
+
+  it('rewrites @sinclair/typebox/format to baobox/format', () => {
+    const result = transformImport("import { FormatRegistry } from '@sinclair/typebox/format';");
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe("import { FormatRegistry } from 'baobox/format';");
+  });
+
   it('does not change unrelated imports', () => {
     const result = transformImport("import express from 'express';");
     expect(result.changed).toBe(false);
@@ -38,8 +50,67 @@ describe('API call transforms', () => {
     expect(result.line).toBe('const validator = Compile(schema);');
   });
 
+  it('rewrites Value.Check to Check', () => {
+    const result = transformApiCalls('const valid = Value.Check(schema, data);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('const valid = Check(schema, data);');
+  });
+
+  it('rewrites Value.Clean to Clean', () => {
+    const result = transformApiCalls('const cleaned = Value.Clean(schema, data);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('const cleaned = Clean(schema, data);');
+  });
+
+  it('rewrites Value.Decode to Decode', () => {
+    const result = transformApiCalls('const decoded = Value.Decode(schema, data);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('const decoded = Decode(schema, data);');
+  });
+
+  it('rewrites Value.Encode to Encode', () => {
+    const result = transformApiCalls('const encoded = Value.Encode(schema, data);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('const encoded = Encode(schema, data);');
+  });
+
+  it('rewrites Value.Create to Create', () => {
+    const result = transformApiCalls('const obj = Value.Create(schema);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('const obj = Create(schema);');
+  });
+
+  it('rewrites Value.Default to Default', () => {
+    const result = transformApiCalls('Value.Default(schema, obj);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('Default(schema, obj);');
+  });
+
+  it('rewrites Value.Convert to Convert', () => {
+    const result = transformApiCalls('const converted = Value.Convert(schema, data);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('const converted = Convert(schema, data);');
+  });
+
+  it('rewrites Value.Parse to Parse', () => {
+    const result = transformApiCalls('const parsed = Value.Parse(schema, data);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('const parsed = Parse(schema, data);');
+  });
+
+  it('rewrites Value.Assert to Assert', () => {
+    const result = transformApiCalls('Value.Assert(schema, data);');
+    expect(result.changed).toBe(true);
+    expect(result.line).toBe('Assert(schema, data);');
+  });
+
   it('does not change unrelated code', () => {
     const result = transformApiCalls('const x = doSomething();');
+    expect(result.changed).toBe(false);
+  });
+
+  it('skips comment lines', () => {
+    const result = transformApiCalls('// Value.Check(schema, data);');
     expect(result.changed).toBe(false);
   });
 });
@@ -55,6 +126,12 @@ describe('manual review detection', () => {
     const items = detectManualReviewItems('const errors = Value.Errors(schema, value);', 5);
     expect(items.length).toBe(1);
     expect(items[0]).toContain('ErrorsIterator');
+  });
+
+  it('flags TypeSystemPolicy usage', () => {
+    const items = detectManualReviewItems('TypeSystemPolicy.AllowNaN = true;', 7);
+    expect(items.length).toBe(1);
+    expect(items[0]).toContain('TypeSystemPolicy');
   });
 });
 

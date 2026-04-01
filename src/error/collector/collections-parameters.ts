@@ -12,6 +12,7 @@ import { appendPath, type CollectSchemaIssues, type ReferenceMap } from './share
 
 function collectTupleParameterIssues(
   parameters: readonly TSchema[],
+  rootSchema: TSchema,
   value: unknown,
   path: readonly string[],
   refs: ReferenceMap,
@@ -20,12 +21,12 @@ function collectTupleParameterIssues(
   const currentPath = schemaPath(path);
 
   if (!Array.isArray(value)) {
-    return [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'array' })];
+    return [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'array' }, rootSchema)];
   }
 
   const issues: SchemaIssue[] = [];
   if (value.length !== parameters.length) {
-    issues.push(createSchemaIssue(currentPath, 'PARAMETERS_LENGTH', { count: parameters.length }));
+    issues.push(createSchemaIssue(currentPath, 'PARAMETERS_LENGTH', { count: parameters.length }, rootSchema));
   }
   value.forEach((item, index) => {
     const parameter = parameters[index];
@@ -48,7 +49,7 @@ export function collectParameterCollectionIssues(
     case 'Rest': {
       const currentPath = schemaPath(path);
       if (!Array.isArray(value)) {
-        return [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'array' })];
+        return [createSchemaIssue(currentPath, 'INVALID_TYPE', { expected: 'array' }, schema)];
       }
 
       const restSchema = schema as TRest;
@@ -59,10 +60,18 @@ export function collectParameterCollectionIssues(
       return issues;
     }
     case 'Parameters':
-      return collectTupleParameterIssues((schema as TParameters<TFunction>).function.parameters, value, path, refs, collectSchemaIssues);
+      return collectTupleParameterIssues(
+        (schema as TParameters<TFunction>).function.parameters,
+        schema,
+        value,
+        path,
+        refs,
+        collectSchemaIssues,
+      );
     case 'ConstructorParameters':
       return collectTupleParameterIssues(
         (schema as TConstructorParameters<TConstructor>).constructor.parameters,
+        schema,
         value,
         path,
         refs,

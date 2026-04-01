@@ -7,6 +7,7 @@ export interface MigrationOptions {
   dryRun: boolean;
   path: string;
   report: boolean;
+  includeJs?: boolean;
 }
 
 export interface FileChange {
@@ -35,11 +36,19 @@ function isTypeScriptFile(path: string): boolean {
   return path.endsWith('.ts') || path.endsWith('.tsx');
 }
 
+function isJavaScriptFile(path: string): boolean {
+  return path.endsWith('.js') || path.endsWith('.jsx') || path.endsWith('.mjs') || path.endsWith('.cjs');
+}
+
+function isSupportedFile(path: string, includeJs: boolean): boolean {
+  return isTypeScriptFile(path) || (includeJs && isJavaScriptFile(path));
+}
+
 function hasTypeBoxImport(content: string): boolean {
   return content.includes('@sinclair/typebox');
 }
 
-async function scanDirectory(dir: string): Promise<string[]> {
+async function scanDirectory(dir: string, includeJs: boolean): Promise<string[]> {
   const { readdir } = await import('node:fs/promises');
   const { join } = await import('node:path');
   const results: string[] = [];
@@ -51,8 +60,8 @@ async function scanDirectory(dir: string): Promise<string[]> {
       continue;
     }
     if (entry.isDirectory()) {
-      results.push(...await scanDirectory(fullPath));
-    } else if (isTypeScriptFile(entry.name)) {
+      results.push(...await scanDirectory(fullPath, includeJs));
+    } else if (isSupportedFile(entry.name, includeJs)) {
       results.push(fullPath);
     }
   }
@@ -107,7 +116,7 @@ function migrateFileContent(content: string, filePath: string): FileChange {
 export async function migrate(options: MigrationOptions): Promise<MigrationReport> {
   const { readFile, writeFile } = await import('node:fs/promises');
 
-  const files = await scanDirectory(options.path);
+  const files = await scanDirectory(options.path, options.includeJs ?? false);
   const changes: FileChange[] = [];
   let totalTransforms = 0;
   let totalManualReviewItems = 0;

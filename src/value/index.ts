@@ -1,5 +1,5 @@
 import { Errors } from '../error/errors.js';
-import { ErrorsIterator } from './errors-compat.js';
+import { ErrorsIterator, First } from './errors-compat.js';
 import { Explain, TryCreate, TryDecode, TryEncode, TryRepair } from './result.js';
 import { Assert, AssertError } from './assert.js';
 import { Check } from './check.js';
@@ -99,6 +99,7 @@ export { Encode };
 export { Equal };
 export { Errors };
 export { ErrorsIterator };
+export { First };
 export type { ValueError } from './errors-compat.js';
 export { ValueErrorType } from './errors-compat.js';
 export { Explain };
@@ -131,6 +132,7 @@ const Value = {
   Errors,
   ErrorsIterator,
   Explain,
+  First,
   HasCodec,
   Hash,
   Mutate,

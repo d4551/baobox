@@ -1,3 +1,4 @@
+import type { TSchema } from '../type/schema.js';
 import type {
   SchemaIssue,
   SchemaIssueCatalog,
@@ -19,8 +20,9 @@ export function createSchemaIssue(
   path: string,
   code: SchemaIssueCode,
   params: SchemaIssueParams = {},
+  schema?: TSchema,
 ): SchemaIssue {
-  return { path, code, params };
+  return schema === undefined ? { path, code, params } : { path, code, params, schema };
 }
 
 export function localizeSchemaIssue(

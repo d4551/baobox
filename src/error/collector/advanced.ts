@@ -87,8 +87,8 @@ interface TEncodeSchema extends TSchema {
   inner: TSchema;
 }
 
-function unresolvedRefIssue(path: readonly string[]): SchemaIssue[] {
-  return [createSchemaIssue(schemaPath(path), 'UNRESOLVED_REF')];
+function unresolvedRefIssue(schema: TSchema, path: readonly string[]): SchemaIssue[] {
+  return [createSchemaIssue(schemaPath(path), 'UNRESOLVED_REF', {}, schema)];
 }
 
 function collectDelegatedIssues(
@@ -152,19 +152,19 @@ function collectReferenceIssues(
     case 'Ref': {
       const target = refs.get((schema as TRef).name);
       return target === undefined
-        ? unresolvedRefIssue(path)
+        ? unresolvedRefIssue(schema, path)
         : collectSchemaIssues(target, value, path, refs);
     }
     case 'This': {
       const target = refs.get('#');
       return target === undefined
-        ? unresolvedRefIssue(path)
+        ? unresolvedRefIssue(schema, path)
         : collectSchemaIssues(target, value, path, refs);
     }
     case 'Call': {
       const instantiated = Instantiate({}, schema);
       return instantiated === schema
-        ? [createSchemaIssue(schemaPath(path), 'CALL')]
+        ? [createSchemaIssue(schemaPath(path), 'CALL', {}, schema)]
         : collectSchemaIssues(instantiated, value, path, refs);
     }
     case 'Cyclic': {
@@ -198,7 +198,7 @@ function collectBranchIssues(
         return collectSchemaIssues(excludeSchema.left, value, path, refs);
       }
       return CheckInternal(excludeSchema.right, value, refs)
-        ? [createSchemaIssue(currentPath, 'EXCLUDE')]
+        ? [createSchemaIssue(currentPath, 'EXCLUDE', {}, excludeSchema)]
         : [];
     }
     case 'Extract': {
@@ -208,10 +208,10 @@ function collectBranchIssues(
       }
       return CheckInternal(extractSchema.right, value, refs)
         ? []
-        : [createSchemaIssue(currentPath, 'EXTRACT')];
+        : [createSchemaIssue(currentPath, 'EXTRACT', {}, extractSchema)];
     }
     case 'Not':
-      return CheckInternal((schema as TNotSchema).schema, value, refs) ? [createSchemaIssue(currentPath, 'NOT')] : [];
+      return CheckInternal((schema as TNotSchema).schema, value, refs) ? [createSchemaIssue(currentPath, 'NOT', {}, schema as TNotSchema)] : [];
     case 'IfThenElse': {
       const conditionalSchema = schema as TIfThenElseSchema;
       return collectSchemaIssues(
@@ -227,7 +227,7 @@ function collectBranchIssues(
         const variantIssues = conditionalSchema.union.map((entry) => collectSchemaIssues(entry, value, path, refs));
         return variantIssues.some((entry) => entry.length === 0)
           ? []
-          : [createSchemaIssue(currentPath, 'CONDITIONAL')];
+          : [createSchemaIssue(currentPath, 'CONDITIONAL', {}, conditionalSchema)];
       }
       return conditionalSchema.default === undefined
         ? []
@@ -242,7 +242,7 @@ function collectBranchIssues(
       const issues: SchemaIssue[] = [];
       refineSchema['~refine'].forEach((refinement) => {
         if (!refinement.refine(value)) {
-          issues.push(createSchemaIssue(currentPath, 'REFINE', { customMessage: refinement.message }));
+          issues.push(createSchemaIssue(currentPath, 'REFINE', { customMessage: refinement.message }, refineSchema));
         }
       });
       return issues;
@@ -266,7 +266,7 @@ export function collectAdvancedIssues(
     ?? (() => {
       const customValidator = TypeRegistry.Get(kind ?? '');
       return customValidator !== undefined && !customValidator(schema, value)
-        ? [createSchemaIssue(schemaPath(path), 'CUSTOM_TYPE', { kind: kind ?? '' })]
+        ? [createSchemaIssue(schemaPath(path), 'CUSTOM_TYPE', { kind: kind ?? '' }, schema)]
         : [];
     })();
 }

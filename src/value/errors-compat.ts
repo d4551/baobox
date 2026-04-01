@@ -3,6 +3,7 @@ import { resolveRuntimeContext, type RuntimeContextArg } from '../shared/runtime
 import { collectSchemaIssues } from '../error/collector.js';
 import { localizeSchemaIssueWithCatalog } from '../error/messages.js';
 import type { SchemaIssueCode } from '../error/catalog-types.js';
+import { schemaKind, schemaSchemaField, schemaSchemaListField, schemaItem, schemaInner } from '../shared/schema-access.js';
 
 export const ValueErrorType = {
   INVALID_TYPE: 0,
@@ -103,6 +104,69 @@ function codeToType(code: SchemaIssueCode): number {
   return CODE_TO_TYPE[code];
 }
 
+/**
+ * Resolve the value at a dot-separated path (e.g. "user.name" or "items.0").
+ * Also handles JSON pointer paths (e.g. "/user/name").
+ * Returns undefined if the path cannot be traversed.
+ */
+function resolveValueAtPath(root: unknown, path: string): unknown {
+  if (!path) return root;
+  // Support both dot-notation (native) and JSON pointer (slash) paths
+  const segments = path.startsWith('/')
+    ? path.split('/').filter(Boolean)
+    : path.split('.');
+  let current: unknown = root;
+  for (const segment of segments) {
+    if (current === null || current === undefined || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+/**
+ * Resolve the sub-schema at a dot-separated path by walking the schema tree.
+ * Returns the root schema if the path cannot be resolved.
+ */
+function resolveSchemaAtPath(root: TSchema, path: string): TSchema {
+  if (!path) return root;
+  const segments = path.startsWith('/')
+    ? path.split('/').filter(Boolean)
+    : path.split('.');
+  let current: TSchema = root;
+  for (const segment of segments) {
+    const kind = schemaKind(current);
+    // Unwrap wrappers
+    if (kind === 'Optional' || kind === 'Readonly' || kind === 'Immutable' || kind === 'Refine') {
+      const inner = schemaItem(current) ?? schemaInner(current);
+      if (inner) { current = inner; }
+    }
+    const resolvedKind = schemaKind(current);
+    if (resolvedKind === 'Object') {
+      const props = (current as Record<string, unknown>).properties as Record<string, TSchema> | undefined;
+      if (props && segment in props) {
+        current = props[segment]!;
+        continue;
+      }
+    }
+    if (resolvedKind === 'Array') {
+      const items = schemaSchemaField(current, 'items');
+      if (items) { current = items; continue; }
+    }
+    if (resolvedKind === 'Tuple') {
+      const tupleItems = schemaSchemaListField(current, 'items');
+      const idx = parseInt(segment, 10);
+      if (!isNaN(idx) && tupleItems[idx]) { current = tupleItems[idx]; continue; }
+    }
+    if (resolvedKind === 'Record') {
+      const valueSchema = schemaSchemaField(current, 'value');
+      if (valueSchema) { current = valueSchema; continue; }
+    }
+    // Cannot resolve further — return what we have
+    break;
+  }
+  return current;
+}
+
 export function* ErrorsIterator(
   schema: TSchema,
   value: unknown,
@@ -117,10 +181,25 @@ export function* ErrorsIterator(
     const diagnostic = localizeSchemaIssueWithCatalog(issue, catalog, locale);
     yield {
       type: codeToType(issue.code),
-      schema,
+      schema: issue.schema ?? resolveSchemaAtPath(schema, diagnostic.path),
       path: diagnostic.path,
-      value,
+      value: resolveValueAtPath(value, diagnostic.path),
       message: diagnostic.message,
     };
   }
+}
+
+/**
+ * Returns the first validation error, or undefined if the value is valid.
+ * Convenience function matching TypeBox's Value.Errors() usage pattern
+ * where code often only checks the first error.
+ */
+export function First(
+  schema: TSchema,
+  value: unknown,
+  context?: RuntimeContextArg,
+): ValueError | undefined {
+  const iter = ErrorsIterator(schema, value, context);
+  const result = iter.next();
+  return result.done ? undefined : result.value;
 }

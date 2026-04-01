@@ -38,14 +38,13 @@ describe('result-first APIs', () => {
     const schema = B.String();
     const diagnostics = B.Explain(schema, 42);
 
-    expect(diagnostics).toEqual([
-      {
-        code: 'INVALID_TYPE',
-        locale: 'en_US',
-        message: 'Expected string, got number',
-        params: { actual: 'number', expected: 'string' },
-        path: '/',
-      },
-    ]);
+    expect(diagnostics.length).toBe(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: 'INVALID_TYPE',
+      locale: 'en_US',
+      message: 'Expected string, got number',
+      params: { actual: 'number', expected: 'string' },
+      path: '/',
+    });
   });
 });

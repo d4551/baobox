@@ -13,12 +13,12 @@ export function schemaNode(schema: TSchema): SchemaNode {
 }
 
 export function schemaKind(schema: TSchema): TKind | undefined {
-  const kind = Reflect.get(schemaNode(schema), '~kind');
+  const kind = (schema as Record<string, unknown>)['~kind'];
   return typeof kind === 'string' ? kind as TKind : undefined;
 }
 
 export function schemaUnknownField(schema: TSchema, field: string): unknown {
-  return Reflect.get(schemaNode(schema), field);
+  return (schema as Record<string, unknown>)[field];
 }
 
 export function schemaStringField(schema: TSchema, field: string): string | undefined {

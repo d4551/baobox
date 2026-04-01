@@ -28,19 +28,71 @@ import * as Type from '../type/index.js';
 
 /**
  * Stamp a `[Kind]` symbol property onto a schema object so that Elysia's
- * TypeBox 0.x type-guards recognise it. The mutation is applied in-place and
- * the same reference is returned, making this safe to use as a decorator.
+ * TypeBox 0.x type-guards recognise it. Recursively walks nested schemas
+ * (properties, items, variants, key, value, item) so that every node in
+ * the schema tree carries the symbol.
+ *
+ * The mutation is applied in-place and the same reference is returned.
+ * Each top-level call uses a fresh WeakSet so shared nodes can be re-decorated
+ * in later invocations while still breaking cycles within one walk.
  */
-export function decorateSchema<T extends TSchema>(schema: T): T {
-  if (
-    typeof schema === 'object' &&
-    schema !== null &&
-    '~kind' in schema &&
-    schema['~kind'] !== undefined
-  ) {
+function decorateSchemaRecursive<T extends TSchema>(schema: T, visited: WeakSet<object>): T {
+  if (typeof schema !== 'object' || schema === null || visited.has(schema)) {
+    return schema;
+  }
+  visited.add(schema);
+
+  // Stamp [Kind] from ~kind
+  if ('~kind' in schema && schema['~kind'] !== undefined) {
     (schema as Record<string | symbol, unknown>)[Kind] = schema['~kind'];
   }
+
+  const s = schema as Record<string, unknown>;
+
+  // Object properties
+  if (s.properties && typeof s.properties === 'object') {
+    for (const key of globalThis.Object.keys(s.properties as Record<string, unknown>)) {
+      const prop = (s.properties as Record<string, TSchema>)[key];
+      if (prop && typeof prop === 'object') decorateSchemaRecursive(prop, visited);
+    }
+  }
+
+  // Array items / Optional+Readonly item
+  if (s.items && typeof s.items === 'object') {
+    if (globalThis.Array.isArray(s.items)) {
+      for (const item of s.items as TSchema[]) decorateSchemaRecursive(item, visited);
+    } else {
+      decorateSchemaRecursive(s.items as TSchema, visited);
+    }
+  }
+  if (s.item && typeof s.item === 'object') decorateSchemaRecursive(s.item as TSchema, visited);
+
+  // Union/Intersect variants
+  if (globalThis.Array.isArray(s.variants)) {
+    for (const v of s.variants as TSchema[]) decorateSchemaRecursive(v, visited);
+  }
+
+  // Record key/value (both hold nested TSchema like other branches — avoid '~kind' asymmetry)
+  if (s.key && typeof s.key === 'object') decorateSchemaRecursive(s.key as TSchema, visited);
+  if (s.value && typeof s.value === 'object') decorateSchemaRecursive(s.value as TSchema, visited);
+
+  // Schema wrappers (Decode, Encode, Not, etc.)
+  if (s.inner && typeof s.inner === 'object') decorateSchemaRecursive(s.inner as TSchema, visited);
+  if (s.schema && typeof s.schema === 'object') decorateSchemaRecursive(s.schema as TSchema, visited);
+
+  // Transform types (Partial, Required, Pick, Omit, KeyOf, Index, Mapped)
+  if (s.object && typeof s.object === 'object') decorateSchemaRecursive(s.object as TSchema, visited);
+
+  // IfThenElse
+  if (s.if && typeof s.if === 'object') decorateSchemaRecursive(s.if as TSchema, visited);
+  if (s.then && typeof s.then === 'object') decorateSchemaRecursive(s.then as TSchema, visited);
+  if (s.else && typeof s.else === 'object') decorateSchemaRecursive(s.else as TSchema, visited);
+
   return schema;
+}
+
+export function decorateSchema<T extends TSchema>(schema: T): T {
+  return decorateSchemaRecursive(schema, new WeakSet());
 }
 
 /**
@@ -239,6 +291,37 @@ export const t = {
   Unsafe: (...args: Parameters<typeof Type.Unsafe>) =>
     decorateSchema(Type.Unsafe(...args)),
 
+  // ── additional builders ──────────────────────────────────────────────────
+
+  Mapped: (...args: Parameters<typeof Type.Mapped>) =>
+    decorateSchema(Type.Mapped(...args)),
+
+  Conditional: (...args: Parameters<typeof Type.Conditional>) =>
+    decorateSchema(Type.Conditional(...args)),
+
+  IfThenElse: (...args: Parameters<typeof Type.IfThenElse>) =>
+    decorateSchema(Type.IfThenElse(...args)),
+
+  Variant: (...args: Parameters<typeof Type.Variant>) =>
+    decorateSchema(Type.Variant(...args)),
+
+  Composite: (...args: Parameters<typeof Type.Composite>) =>
+    decorateSchema(Type.Composite(...args)),
+
+  // ── string case transforms ──────────────────────────────────────────────
+
+  Capitalize: (...args: Parameters<typeof Type.Capitalize>) =>
+    decorateSchema(Type.Capitalize(...args)),
+
+  Lowercase: (...args: Parameters<typeof Type.Lowercase>) =>
+    decorateSchema(Type.Lowercase(...args)),
+
+  Uppercase: (...args: Parameters<typeof Type.Uppercase>) =>
+    decorateSchema(Type.Uppercase(...args)),
+
+  Uncapitalize: (...args: Parameters<typeof Type.Uncapitalize>) =>
+    decorateSchema(Type.Uncapitalize(...args)),
+
   // ── decode / encode ──────────────────────────────────────────────────────
 
   Decode: <T extends TSchema>(
@@ -250,4 +333,96 @@ export const t = {
     inner: T,
     encode: (value: unknown) => unknown,
   ) => decorateSchema(Type.Encode<T>(inner, encode)),
+
+  // ── extensions ──────────────────────────────────────────────────────────
+
+  Refine: (...args: Parameters<typeof Type.Refine>) =>
+    decorateSchema(Type.Refine(...args)),
+
+  Immutable: (...args: Parameters<typeof Type.Immutable>) =>
+    decorateSchema(Type.Immutable(...args)),
+
+  // ── actions ─────────────────────────────────────────────────────────────
+
+  Evaluate: (...args: Parameters<typeof Type.Evaluate>) =>
+    decorateSchema(Type.Evaluate(...args)),
+
+  Awaited: (...args: Parameters<typeof Type.Awaited>) =>
+    decorateSchema(Type.Awaited(...args)),
+
+  ReturnType: (...args: Parameters<typeof Type.ReturnType>) =>
+    decorateSchema(Type.ReturnType(...args)),
+
+  Parameters: (...args: Parameters<typeof Type.Parameters>) =>
+    decorateSchema(Type.Parameters(...args)),
+
+  InstanceType: (...args: Parameters<typeof Type.InstanceType>) =>
+    decorateSchema(Type.InstanceType(...args)),
+
+  ConstructorParameters: (...args: Parameters<typeof Type.ConstructorParameters>) =>
+    decorateSchema(Type.ConstructorParameters(...args)),
+
+  Module: (...args: Parameters<typeof Type.Module>) =>
+    decorateSchema(Type.Module(...args)),
+
+  Rest: (...args: Parameters<typeof Type.Rest>) =>
+    decorateSchema(Type.Rest(...args)),
+
+  Clone: (...args: Parameters<typeof Type.Clone>) =>
+    decorateSchema(Type.Clone(...args)),
+
+  Interface: (...args: Parameters<typeof Type.Interface>) =>
+    decorateSchema(Type.Interface(...args)),
+
+  NonNullable: (...args: Parameters<typeof Type.NonNullable>) =>
+    decorateSchema(Type.NonNullable(...args)),
+
+  Options: (...args: Parameters<typeof Type.Options>) =>
+    decorateSchema(Type.Options(...args)),
+
+  ReadonlyType: (...args: Parameters<typeof Type.ReadonlyType>) =>
+    decorateSchema(Type.ReadonlyType(...args)),
+
+  Identifier: (...args: Parameters<typeof Type.Identifier>) =>
+    decorateSchema(Type.Identifier(...args)),
+
+  Parameter: (...args: Parameters<typeof Type.Parameter>) =>
+    decorateSchema(Type.Parameter(...args)),
+
+  This: (...args: Parameters<typeof Type.This>) =>
+    decorateSchema(Type.This(...args)),
+
+  Import: (...args: Parameters<typeof Type.Import>) =>
+    decorateSchema(Type.Import(...args)),
+
+  // ── extension builders ──────────────────────────────────────────────────
+
+  Generic: (...args: Parameters<typeof Type.Generic>) =>
+    decorateSchema(Type.Generic(...args)),
+
+  Infer: (...args: Parameters<typeof Type.Infer>) =>
+    decorateSchema(Type.Infer(...args)),
+
+  Cyclic: (...args: Parameters<typeof Type.Cyclic>) =>
+    decorateSchema(Type.Cyclic(...args)),
+
+  Call: (...args: Parameters<typeof Type.Call>) =>
+    decorateSchema(Type.Call(...args)),
+
+  Base: Type.Base,
+
+  Function: (...args: Parameters<typeof Type.Function>) =>
+    decorateSchema(Type.Function(...args)),
+
+  Constructor: (...args: Parameters<typeof Type.Constructor>) =>
+    decorateSchema(Type.Constructor(...args)),
+
+  Promise: (...args: Parameters<typeof Type.Promise>) =>
+    decorateSchema(Type.Promise(...args)),
+
+  Iterator: (...args: Parameters<typeof Type.Iterator>) =>
+    decorateSchema(Type.Iterator(...args)),
+
+  AsyncIterator: (...args: Parameters<typeof Type.AsyncIterator>) =>
+    decorateSchema(Type.AsyncIterator(...args)),
 } as const;

@@ -9,6 +9,18 @@ import type { ValidatorArtifact } from './compile/index.js';
 import { Compile } from './compile/index.js';
 
 export type { Static, StaticDecode, StaticEncode } from './type/index.js';
+export type {
+  TSchemaOptions,
+  TObjectOptions,
+  TArrayOptions,
+  TTupleOptions,
+  TIntersectOptions,
+  TNumberOptions,
+  TStringOptions,
+  TLiteralValue,
+  TEnumValue,
+  TFormat,
+} from './type/typebox-compat.js';
 export type { ParseFailure, ParseResult, ParseSuccess } from './error/index.js';
 export {
   Check,
@@ -32,6 +44,7 @@ export {
   Diff,
   Errors,
   ErrorsIterator,
+  First,
   ValueErrorType,
   Patch,
   Pipeline,

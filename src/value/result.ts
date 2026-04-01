@@ -23,8 +23,8 @@ export function TryDecode<T extends TSchema>(
   value: unknown,
   context?: RuntimeContext,
 ): ParseResult<StaticDecode<T>> {
-  const decoded = Decode(schema, value);
-  const encoded = Encode(schema, decoded);
+  const decoded = Decode(schema, value, context);
+  const encoded = Encode(schema, decoded, context);
   return Check(schema, encoded, context)
     ? { success: true, value: decoded }
     : { success: false, errors: Errors(schema, encoded, context) };
@@ -35,7 +35,7 @@ export function TryEncode<T extends TSchema>(
   value: unknown,
   context?: RuntimeContext,
 ): ParseResult<StaticEncode<T>> {
-  const encoded = Encode(schema, value);
+  const encoded = Encode(schema, value, context);
   return Check(schema, encoded, context)
     ? { success: true, value: encoded }
     : { success: false, errors: Errors(schema, encoded, context) };

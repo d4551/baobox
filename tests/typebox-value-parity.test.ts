@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import Baobox, { Check, Clean, Convert, Create, Decode, Default, Encode, Errors } from '../src/index.ts';
+import Baobox, { Check, Clean, Convert, Create, Default, Errors, ErrorsIterator, First } from '../src/index.ts';
+import { Decode, Encode } from '../src/value/index.ts';
 import TypeBoxValue from 'typebox/value';
 import TypeBox from 'typebox';
 
@@ -225,6 +226,183 @@ describe('TypeBox value parity', () => {
         expect(typeof error.message).toBe('string');
         expect(typeof error.code).toBe('string');
       }
+    });
+  });
+
+  describe('ErrorsIterator', () => {
+    it('returns IterableIterator<ValueError> with correct format', () => {
+      const schema = Baobox.Object({
+        name: Baobox.String(),
+        age: Baobox.Integer({ minimum: 0 }),
+      });
+
+      const invalid = { name: 42, age: -1 };
+      const errors = [...ErrorsIterator(schema, invalid)];
+
+      expect(errors.length).toBeGreaterThan(0);
+      for (const error of errors) {
+        expect(typeof error.type).toBe('number');
+        expect(error.schema).toBeDefined();
+        expect(typeof error.path).toBe('string');
+        expect(typeof error.message).toBe('string');
+        // value should be the actual failing value, not root
+        expect(error.value).toBeDefined();
+      }
+    });
+
+    it('error.value is the value at the failing path', () => {
+      const schema = Baobox.Object({
+        name: Baobox.String(),
+        nested: Baobox.Object({
+          count: Baobox.Number(),
+        }),
+      });
+
+      const invalid = { name: 'Ada', nested: { count: 'not-a-number' } };
+      const errors = [...ErrorsIterator(schema, invalid)];
+
+      // Should have an error for nested.count
+      const nestedError = errors.find((e) => e.path.includes('count'));
+      if (nestedError) {
+        expect(nestedError.value).toBe('not-a-number');
+      }
+    });
+
+    it('can be consumed as a for...of iterator', () => {
+      const schema = Baobox.String();
+      const errors: unknown[] = [];
+      for (const err of ErrorsIterator(schema, 42)) {
+        errors.push(err);
+      }
+      expect(errors.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('First', () => {
+    it('returns first error for invalid value', () => {
+      const schema = Baobox.String();
+      const error = First(schema, 42);
+      expect(error).toBeDefined();
+      expect(typeof error!.type).toBe('number');
+      expect(typeof error!.message).toBe('string');
+    });
+
+    it('returns undefined for valid value', () => {
+      const schema = Baobox.String();
+      expect(First(schema, 'hello')).toBeUndefined();
+    });
+  });
+
+  describe('Decode/Encode', () => {
+    it('Decode processes codec on schema with codec', () => {
+      const toNumber = (v: unknown) => globalThis.Number.parseInt(v as string, 10);
+      const bSchema = Baobox.Codec(Baobox.String(), { decode: toNumber, encode: (v: unknown) => String(v) });
+      const tSchema = TypeBox.Codec(TypeBox.String(), { decode: toNumber, encode: (v: unknown) => String(v) });
+
+      const bResult = Decode(bSchema, '42');
+      const tResult = TypeBoxValue.Decode(tSchema, '42');
+      expect(bResult).toBe(tResult);
+    });
+
+    it('Encode processes codec on schema with codec', () => {
+      const bSchema = Baobox.Codec(Baobox.String(), { decode: (v: unknown) => v, encode: (v: unknown) => `encoded:${v}` });
+      const tSchema = TypeBox.Codec(TypeBox.String(), { decode: (v: unknown) => v, encode: (v: unknown) => `encoded:${v}` });
+
+      const bResult = Encode(bSchema, 'test');
+      const tResult = TypeBoxValue.Encode(tSchema, 'test');
+      expect(bResult).toBe(tResult);
+    });
+
+    it('Decode/Encode on schema without codec is passthrough', () => {
+      const bSchema = Baobox.String();
+      const tSchema = TypeBox.String();
+
+      expect(Decode(bSchema, 'hello')).toBe(TypeBoxValue.Decode(tSchema, 'hello'));
+      expect(Encode(bSchema, 'hello')).toBe(TypeBoxValue.Encode(tSchema, 'hello'));
+    });
+  });
+
+  describe('Value namespace has all expected functions', () => {
+    it('has all TypeBox Value functions', async () => {
+      const V = (await import('../src/value/index.ts')).Value;
+      expect(typeof V.Assert).toBe('function');
+      expect(typeof V.Check).toBe('function');
+      expect(typeof V.Clean).toBe('function');
+      expect(typeof V.Clone).toBe('function');
+      expect(typeof V.Convert).toBe('function');
+      expect(typeof V.Create).toBe('function');
+      expect(typeof V.Decode).toBe('function');
+      expect(typeof V.Default).toBe('function');
+      expect(typeof V.Diff).toBe('function');
+      expect(typeof V.Encode).toBe('function');
+      expect(typeof V.Equal).toBe('function');
+      expect(typeof V.Errors).toBe('function');
+      expect(typeof V.ErrorsIterator).toBe('function');
+      expect(typeof V.First).toBe('function');
+      expect(typeof V.Hash).toBe('function');
+      expect(typeof V.HasCodec).toBe('function');
+      expect(typeof V.Mutate).toBe('function');
+      expect(typeof V.Parse).toBe('function');
+      expect(typeof V.Patch).toBe('function');
+      expect(typeof V.Pointer).toBe('object'); // Pointer is a namespace object
+      expect(typeof V.Repair).toBe('function');
+    });
+  });
+
+  describe('Union Decode/Encode', () => {
+    it('decodes through the matching union variant (plain types)', () => {
+      const schema = Baobox.Union([
+        Baobox.Object({ type: Baobox.Literal('a'), value: Baobox.String() }),
+        Baobox.Object({ type: Baobox.Literal('b'), value: Baobox.Number() }),
+      ]);
+      // First variant matches
+      const resultA = Decode(schema, { type: 'a', value: 'hello' });
+      expect(resultA).toEqual({ type: 'a', value: 'hello' });
+      // Second variant matches
+      const resultB = Decode(schema, { type: 'b', value: 42 });
+      expect(resultB).toEqual({ type: 'b', value: 42 });
+    });
+
+    it('encodes through the matching union variant (plain types)', () => {
+      const schema = Baobox.Union([
+        Baobox.Object({ type: Baobox.Literal('a'), value: Baobox.String() }),
+        Baobox.Object({ type: Baobox.Literal('b'), value: Baobox.Number() }),
+      ]);
+      expect(Encode(schema, { type: 'a', value: 'hello' })).toEqual({ type: 'a', value: 'hello' });
+    });
+
+    it('union decode returns value when no variant matches', () => {
+      const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
+      expect(Decode(schema, true)).toBe(true);
+    });
+
+    it('union encode returns value when no variant matches', () => {
+      const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
+      expect(Encode(schema, true)).toBe(true);
+    });
+  });
+
+  describe('Intersect Encode', () => {
+    it('encodes sequentially through intersect variants', () => {
+      const schema = Baobox.Intersect([
+        Baobox.Object({ name: Baobox.String() }),
+        Baobox.Object({ age: Baobox.Number() }),
+      ]);
+      const result = Encode(schema, { name: 'Ada', age: 37 });
+      expect(result).toEqual({ name: 'Ada', age: 37 });
+    });
+  });
+
+  describe('Nested Object Decode/Encode', () => {
+    it('decodes nested object properties', () => {
+      const schema = Baobox.Object({
+        name: Baobox.String(),
+        nested: Baobox.Object({
+          count: Baobox.Number(),
+        }),
+      });
+      const result = Decode(schema, { name: 'test', nested: { count: 42 } });
+      expect(result).toEqual({ name: 'test', nested: { count: 42 } });
     });
   });
 });
