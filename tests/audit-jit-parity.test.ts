@@ -4,7 +4,7 @@
  * features including advanced constraints.
  */
 import { describe, expect, it } from 'bun:test';
-import Baobox, { Check, Compile } from '../src/index.ts';
+import Baobox, { Check, Compile, ErrorsIterator } from '../src/index.ts';
 
 describe('JIT parity: Tuple emission', () => {
   it('basic tuple validates correctly compiled', () => {
@@ -389,5 +389,62 @@ describe('Union Encode: encode-first-then-check pattern', () => {
     ]);
     const result = Encode(schema, { name: 'Ada', age: 37 });
     expect(result).toEqual({ name: 'Ada', age: 37 });
+  });
+});
+
+describe('PR review fixes: Record decode/encode, Immutable/Refine JIT, multi-wrapper unwrap', () => {
+  it('Record decode traverses value schemas', async () => {
+    const { Decode } = await import('../src/value/index.ts');
+    const schema = Baobox.Record(
+      Baobox.String(),
+      Baobox.Codec(Baobox.String()).Decode((v: string) => parseInt(v, 10)).Encode((v: number) => String(v)),
+    );
+    const result = Decode(schema, { a: '1', b: '2' });
+    expect(result).toEqual({ a: 1, b: 2 });
+  });
+
+  it('Record encode traverses value schemas', async () => {
+    const { Encode } = await import('../src/value/index.ts');
+    const schema = Baobox.Record(
+      Baobox.String(),
+      Baobox.Codec(Baobox.String()).Decode((v: string) => parseInt(v, 10)).Encode((v: number) => String(v)),
+    );
+    const result = Encode(schema, { a: 1, b: 2 });
+    expect(result).toEqual({ a: '1', b: '2' });
+  });
+
+  it('compiled Immutable(String) matches interpreted', () => {
+    const schema = Baobox.Immutable(Baobox.String());
+    const compiled = Compile(schema);
+    expect(compiled.Check('hello')).toBe(Check(schema, 'hello'));
+    expect(compiled.Check(42)).toBe(Check(schema, 42));
+  });
+
+  it('compiled Refine(Number) matches interpreted', () => {
+    const schema = Baobox.Refine(Baobox.Number(), (v) => (v as number) > 0, 'positive');
+    const compiled = Compile(schema);
+    expect(compiled.Check(5)).toBe(Check(schema, 5));
+    expect(compiled.Check(-1)).toBe(Check(schema, -1));
+  });
+
+  it('compiled Optional(Immutable(Refine(String))) unwraps all layers', () => {
+    const schema = Baobox.Optional(Baobox.Immutable(Baobox.Refine(Baobox.String(), () => true)));
+    const compiled = Compile(schema);
+    expect(compiled.Check('ok')).toBe(Check(schema, 'ok'));
+    expect(compiled.Check(undefined)).toBe(Check(schema, undefined));
+    expect(compiled.Check(42)).toBe(Check(schema, 42));
+  });
+
+  it('ErrorsIterator resolves schema through multiple wrapper layers', () => {
+    const innerNum = Baobox.Number();
+    const schema = Baobox.Object({
+      value: Baobox.Optional(Baobox.Immutable(innerNum)),
+    });
+    const errors = [...ErrorsIterator(schema, { value: 'wrong' })];
+    const valueError = errors.find((e) => e.path.includes('value'));
+    if (valueError) {
+      // Should unwrap through Optional→Immutable to reach Number
+      expect(valueError.schema).toBe(innerNum);
+    }
   });
 });

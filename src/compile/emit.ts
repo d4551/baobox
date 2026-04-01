@@ -274,7 +274,11 @@ export function emitStructuredSchemaCheck(
       return `${valueExpr} === undefined || (${emitSchema(item ?? currentSchema, valueExpr)})`;
     }
     case 'Readonly':
+    case 'Immutable':
       return emitSchema(schemaItem(currentSchema) ?? currentSchema, valueExpr);
+    case 'Refine':
+      // Refine has runtime callbacks that can't be inlined into JIT code
+      return undefined;
     case 'Enum':
       return emitEnumCheck(currentSchema as TEnum, valueExpr);
     case 'Record':

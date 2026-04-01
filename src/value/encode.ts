@@ -143,6 +143,16 @@ function EncodeInternal(
       return encodeArrayItems(schemaSchemaField(schema, 'items'), value, refs, checkContext);
     case 'Tuple':
       return encodeTupleItems(schema, value, refs, checkContext);
+    case 'Record': {
+      if (!isPlainRecord(value)) return value;
+      const valueSchema = schemaSchemaField(schema, 'value');
+      if (!valueSchema) return value;
+      const result: Record<string, unknown> = {};
+      for (const [key, entryValue] of recordEntries(value)) {
+        result[key] = EncodeInternal(valueSchema, entryValue, refs, checkContext);
+      }
+      return result;
+    }
     case 'Union': {
       const variants = schemaSchemaListField(schema, 'variants');
       // TypeBox pattern: encode first, then check the encoded result.
