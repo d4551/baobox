@@ -27,8 +27,8 @@ describe('Union decode edge cases', () => {
   it('empty union variants array returns value unchanged', () => {
     // Manually construct a union with no variants
     const schema = Baobox.Union([]);
-    expect(Decode(schema, 'hello')).toBe('hello');
-    expect(Decode(schema, 42)).toBe(42);
+    expect(Decode(schema, 'hello' as unknown) as unknown).toBe('hello');
+    expect(Decode(schema, 42 as unknown) as unknown).toBe(42);
   });
 
   it('first matching variant wins when multiple could match', () => {
@@ -54,9 +54,9 @@ describe('Union decode edge cases', () => {
   it('decode falls back when no variant matches', () => {
     const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
     // Boolean doesn't match either
-    expect(Decode(schema, true)).toBe(true);
-    expect(Decode(schema, null)).toBe(null);
-    expect(Decode(schema, undefined)).toBe(undefined);
+    expect(Decode(schema, true as unknown) as unknown).toBe(true);
+    expect(Decode(schema, null as unknown) as unknown).toBe(null);
+    expect(Decode(schema, undefined as unknown) as unknown).toBe(undefined);
   });
 
   it('decode works with primitive unions', () => {
@@ -83,7 +83,7 @@ describe('Union decode edge cases', () => {
 describe('Union encode edge cases', () => {
   it('empty union returns value unchanged', () => {
     const schema = Baobox.Union([]);
-    expect(Encode(schema, 'hello')).toBe('hello');
+    expect(Encode(schema, 'hello' as unknown) as unknown).toBe('hello');
   });
 
   it('encode works with discriminated union objects', () => {
@@ -97,8 +97,8 @@ describe('Union encode edge cases', () => {
 
   it('encode falls back when no variant matches', () => {
     const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
-    expect(Encode(schema, true)).toBe(true);
-    expect(Encode(schema, null)).toBe(null);
+    expect(Encode(schema, true as unknown) as unknown).toBe(true);
+    expect(Encode(schema, null as unknown) as unknown).toBe(null);
   });
 });
 
@@ -438,11 +438,11 @@ describe('Elysia t namespace comprehensive validation', () => {
 
   it('deeply decorated Function schema has [Kind] on inner types', () => {
     const fn = t.Function([t.String(), t.Number()], t.Boolean());
-    const params = (fn as Record<string, unknown>).parameters as unknown[];
+    const params = (fn as unknown as Record<string, unknown>).parameters as unknown[];
     for (const param of params) {
       expect((param as Record<string | symbol, unknown>)[Kind]).toBeDefined();
     }
-    const returns = (fn as Record<string, unknown>).returns as Record<string | symbol, unknown>;
+    const returns = (fn as unknown as Record<string, unknown>).returns as Record<string | symbol, unknown>;
     expect(returns[Kind]).toBe('Boolean');
   });
 
@@ -469,7 +469,7 @@ describe('Elysia t namespace comprehensive validation', () => {
     const decoded = t.Decode(t.String(), (v) => String(v));
     expect((decoded as unknown as Record<string | symbol, unknown>)[Kind]).toBe('Decode');
 
-    const inner = (decoded as Record<string, unknown>).inner as Record<string | symbol, unknown>;
+    const inner = (decoded as unknown as Record<string, unknown>).inner as Record<string | symbol, unknown>;
     expect(inner[Kind]).toBe('String');
   });
 
@@ -573,8 +573,8 @@ describe('Decode/Encode nested structures', () => {
 
   it('decode traverses tuples', () => {
     const schema = Baobox.Tuple([Baobox.String(), Baobox.Number()]);
-    const result = Decode(schema, ['hello', 42]);
-    expect(result).toEqual(['hello', 42]);
+    const result = Decode(schema, ['hello', 42]) as unknown;
+    expect(result as unknown[]).toEqual(['hello', 42]);
   });
 
   it('encode traverses nested objects', () => {
@@ -638,7 +638,7 @@ describe('Clean with Union edge cases', () => {
 
   it('clean with empty union returns value unchanged', () => {
     const schema = Baobox.Union([]);
-    expect(Clean(schema, { a: 1 })).toEqual({ a: 1 });
+    expect(Clean(schema, { a: 1 } as never) as unknown).toEqual({ a: 1 });
   });
 
   it('clean with intersect processes all variants', () => {
@@ -665,13 +665,13 @@ describe('Convert with Union edge cases', () => {
 
   it('convert with empty union returns value unchanged', () => {
     const schema = Baobox.Union([]);
-    expect(Convert(schema, 'hello')).toBe('hello');
+    expect(Convert(schema, 'hello' as never) as unknown).toBe('hello');
   });
 
   it('convert passes through if no variant converts', () => {
     const schema = Baobox.Union([Baobox.Object({ x: Baobox.String() })]);
     // An object can't be "converted" from a string
-    expect(Convert(schema, 'hello')).toBe('hello');
+    expect(Convert(schema, 'hello' as never) as unknown).toBe('hello');
   });
 });
 
