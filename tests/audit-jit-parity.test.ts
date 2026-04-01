@@ -349,9 +349,24 @@ describe('JIT parity: self-audit regression tests', () => {
 });
 
 describe('Union Encode: encode-first-then-check pattern', () => {
-  it('encodes plain union by checking encoded result, not input', () => {
-    const { Encode } = require('../src/value/index.ts');
-    // Plain union — encoded result matches the schema
+  it('encodes Codec union variant where decoded shape differs from schema', async () => {
+    const { Encode } = await import('../src/value/index.ts');
+    // Codec: encoded=string, decoded=number. The decoded value (number)
+    // does NOT pass Check against the inner String schema. Only the
+    // encode-first-then-check pattern finds this variant correctly.
+    const numCodec = Baobox.Codec(Baobox.String())
+      .Decode((v: string) => parseInt(v, 10))
+      .Encode((v: number) => String(v));
+    const schema = Baobox.Union([numCodec, Baobox.Integer()]);
+
+    // 42 is decoded form → encode through Codec → "42" (string) → Check passes
+    const encoded = Encode(schema, 42);
+    expect(typeof encoded).toBe('string');
+    expect(encoded).toBe('42');
+  });
+
+  it('encodes plain union by checking encoded result, not input', async () => {
+    const { Encode } = await import('../src/value/index.ts');
     const schema = Baobox.Union([
       Baobox.Object({ type: Baobox.Literal('a'), value: Baobox.String() }),
       Baobox.Object({ type: Baobox.Literal('b'), value: Baobox.Number() }),
@@ -360,10 +375,9 @@ describe('Union Encode: encode-first-then-check pattern', () => {
     expect(Encode(schema, { type: 'b', value: 42 })).toEqual({ type: 'b', value: 42 });
   });
 
-  it('union encode falls back when no encoded variant passes Check', () => {
-    const { Encode } = require('../src/value/index.ts');
+  it('union encode falls back when no encoded variant passes Check', async () => {
+    const { Encode } = await import('../src/value/index.ts');
     const schema = Baobox.Union([Baobox.String(), Baobox.Number()]);
-    // Boolean doesn't match any variant even after encoding
     expect(Encode(schema, true)).toBe(true);
   });
 

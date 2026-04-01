@@ -1,6 +1,6 @@
 {
   "name": "baobox",
-  "version": "0.1.1-rc.3",
+  "version": "0.1.1-rc.4",
   "description": "TypeScript-native schema library optimised for Bun — a lean, Bun-first reimagining of TypeBox",
   "type": "module",
   "main": "./dist/index.js",
