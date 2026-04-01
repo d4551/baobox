@@ -20,6 +20,7 @@ Baobox is a Bun-first, TypeScript-first schema library that keeps the familiar T
 
 ## Why Baobox
 
+- All object properties are required by default, matching TypeBox behavior. Use `Optional()` to mark individual properties as optional.
 - TypeBox-compatible root surface with baobox-only additions at the root entrypoint.
 - Result-first runtime helpers: `TryParse`, `TryDecode`, `TryEncode`, `TryCreate`, and `TryRepair`.
 - Scoped runtime contexts so locale catalogs, registries, settings, and compile caches do not have to be process-global.
@@ -73,6 +74,35 @@ TryDecode(DateCodec(), '2024-01-01T00:00:00.000Z')
 const StandardUser = StandardSchemaV1(User)
 StandardUser['~standard'].validate({ id: 'usr_1', email: 'ada@example.com', age: '37' })
 // { value: { id: 'usr_1', email: 'ada@example.com', age: 37 } }
+```
+
+## Required and Optional Properties
+
+All object properties are required by default. Use `Optional()` to mark individual properties as optional:
+
+```ts
+import Type, { Check } from 'baobox'
+
+const User = Type.Object({
+  name: Type.String(),                    // required
+  email: Type.String({ format: 'email' }), // required
+  bio: Type.Optional(Type.String()),       // optional
+})
+
+Check(User, { name: 'Ada', email: 'ada@example.com' })
+// true — bio is optional
+
+Check(User, { name: 'Ada' })
+// false — email is required
+```
+
+`Clean()` strips extra properties not defined in the schema by default. Set `additionalProperties: true` to keep them:
+
+```ts
+import { Clean, Object, String } from 'baobox'
+
+Clean(Object({ name: String() }), { name: 'Ada', extra: true })
+// { name: 'Ada' } — extra is stripped
 ```
 
 ## API Map
